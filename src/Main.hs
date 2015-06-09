@@ -3,5 +3,9 @@ module Main where
 
 import Prelude.Unicode
 
-main ∷ IO ()
+import Parser
+import Assembler
+import SExp
+
+main :: IO ()
 main = (⊥)
