@@ -1,0 +1,8 @@
+        mov     ebp, esp
+        mov     edi, [ebp+8]
+        mov     esi, [ebp+12]
+        add     ebp, 12
+        mov     [arg_pointer], ebp
+        sub     ebp, 12
+        xor     edx, edx
+        mov     dl, byte [esi]

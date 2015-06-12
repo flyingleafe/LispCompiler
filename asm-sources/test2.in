@@ -1,0 +1,25 @@
+        mov     r8, rdi
+        mov     r9, rsi
+
+        mov     rax, rdi
+        xor     rdx, rdx
+        div     rcx                   ; wtf!!!
+        cmp     rdx, 0
+        je      .skip1
+        sub     rbx, rdx
+        add     rdi, rbx
+;; test
+        .skip1
+
+
+;; aeouanoteueo
+;;; aoeunatoheduntoaheu
+        ;; This section is no good!
+        mov     rax, rsi
+        xor     rdx, rdx   ; this dunno
+        div     rcx
+        cmp     rdx, 0
+        je      .skip2     ; this too
+        sub     rbx, rdx
+        add     rsi, rbx
+        .skip2
