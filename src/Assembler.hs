@@ -4,7 +4,9 @@ module Assembler where
 
 import Prelude
 import Control.Monad
+import System.IO
 import Text.ParserCombinators.Parsec
+import Control.DeepSeq (rnf)
 import Control.Applicative((<$>), (<*), (*>), (<$))
 
 type Label = String
@@ -200,3 +202,13 @@ parseTextSec = parse (TextSec <$> parseCodeBlocks) "oops :("
 
 parseCode :: String → Either ParseError [CodeBlock]
 parseCode = parse parseCodeBlocks "oops :("
+
+--- PARSER END
+
+getSourceFromFile :: String → IO (Either ParseError [CodeBlock])
+getSourceFromFile filename = do
+  input ← openFile filename ReadMode
+  s ← hGetContents $! input
+  -- that's needed to prevent file being closed before parser gets lazy string
+  rnf s `seq` hClose input
+  return $ parseCode s

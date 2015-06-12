@@ -18,6 +18,7 @@ executable fv-lisp-compiler
   -- other-modules:
   -- other-extensions:
   build-depends:       attoparsec >= 0.10
+                     , deepseq
                      , directory
                      , parsec
                      , base >= 4.6

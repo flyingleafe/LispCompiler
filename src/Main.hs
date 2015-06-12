@@ -3,7 +3,6 @@ module Main where
 
 import System.IO
 import System.Environment
-import Text.ParserCombinators.Parsec
 import System.Directory
 
 import Parser
@@ -24,9 +23,11 @@ processIO handling = do
 
 main :: IO ()
 --main = (⊥)
-main = processIO $ \input output → do
-  s ← hGetContents input
---  hPutStrLn output $ case parse (parseCodeBlocks >> getInput) "mda" s of
-  hPutStrLn output $ case parseTextSec s of
-   Right res → show res
-   Left err  → show err
+main = do
+  dc ← getCurrentDirectory
+  putStrLn $ "current dir is " ++ dc
+  test2 ← getSourceFromFile "./asm-sources/test2.in"
+  putStrLn $
+    case test2 of
+     Right res → show res
+     Left err  → show err
