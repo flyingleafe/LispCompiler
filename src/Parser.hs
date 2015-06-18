@@ -7,7 +7,7 @@ import Prelude.Unicode
 import Data.Monoid.Unicode
 import SExp
 import Data.Attoparsec.ByteString.Char8
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS
 import Control.Applicative ((<|>), (<*), (*>))
 
 lexeme, parens :: Parser a → Parser a
@@ -20,11 +20,9 @@ sexp = constexpr <|> var <|>
 
 identifier :: Parser BS.ByteString
 identifier = do
-  let okChar c = isAlpha_ascii c ∨ inClass "_-/'" c
-  token ← lexeme $ takeWhile isAlpha_ascii ⊕ takeWhile okChar
-  if token ≡ ""
-  then fail "identifier"
-  else return token
+  let okChar c = isAlpha_ascii c ∨ inClass "_-/+*'" c
+  token ← lexeme $ takeWhile1 okChar
+  return token
 
 constexpr :: Parser SExp
 constexpr = do
