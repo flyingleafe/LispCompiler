@@ -40,18 +40,18 @@ compileM :: [Flag] → Program → Compiler Assembler
 compileM flags prog = do
   buildScopeTables prog
 
-  let defines = filter isFunDefinition prog
-  functions ← mapM compileFunction defines
+  defines ← gets $ map snd ∘ functions
+  funcs ← mapM compileFunction defines
 
-  let code = Assembler functions [] [] [] []
+  let code = Assembler funcs [] [] [] []
 
   if WithoutMain ∈ flags
   then return code
   else do
-    let body = filter (not ∘ isFunDefinition) prog
-    main ← compileBody $ Progn body
+    let mainBody = filter (not ∘ isFunDefinition) prog
+    main ← compileBody $ Progn mainBody
     let mainFun = CodeFunction "main" main
-    return $ addFunction mainFun code
+    return $ addFunction mainFun $ addGlobalLabel "main" code
 
 isFunDefinition :: SExp → Bool
 isFunDefinition (Define _ (Lambda _ _)) = True
