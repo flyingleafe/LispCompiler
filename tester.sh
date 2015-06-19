@@ -5,7 +5,8 @@ sources=$(find lisp-sources -iname "test*.in")
 for inputsource in $sources
 do
     echo "processing "$inputsource
-    rightoutput=${inputsource:0:$((${#inputsource}-2))}"out"
+    prefix=${inputsource:0:$((${#inputsource}-3))}
+    rightoutput=$prefix".out"
     echo "rightoutput: "$rightoutput
     [ ! -f "$rightoutput" ] && echo "No output test pattern for this executable"
     ./dist/build/compiler/compiler -o tmp/test.yasm $inputsource

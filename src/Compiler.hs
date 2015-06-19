@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude #-}
+{-# LANGUAGE UnicodeSyntax, OverloadedStrings, NoImplicitPrelude #-}
 
 module Compiler where
 
@@ -9,10 +9,10 @@ import SExp
 
 -- returns labels that are needed and code block
 compileSexp :: SExp → ([DataLabel], [CodeBlock])
---compileSexp (List (o@(Const _):[])) = compileSexp o
-compileSexp (Const i)               = ([], [CodeBlob [
-                                               Mov "rax" (show i),
-                                               Ret ]])
+compileSexp (Const i)                       = ([], [CodeBlob [
+                                                       Mov "eax" (show i),
+                                                       Ret ]])
+compileSexp (List ((Var "-"):(Const i):[])) = undefined
 
 genCallingMain :: [String] → CodeFunction
 genCallingMain names = CodeFunction "main" $ [CodeBlob ((map Call names) ++ [Mov "rax" "0", Ret])]
