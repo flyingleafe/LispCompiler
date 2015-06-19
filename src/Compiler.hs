@@ -9,7 +9,7 @@ import SExp
 
 -- returns labels that are needed and code block
 compileSexp :: SExp → ([DataLabel], [CodeBlock])
-compileSexp (List (o@(Const _):[])) = compileSexp o
+--compileSexp (List (o@(Const _):[])) = compileSexp o
 compileSexp (Const i)               = ([], [CodeBlob [
                                                Mov "rax" (show i),
                                                Ret ]])

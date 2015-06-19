@@ -52,7 +52,7 @@ processIO handling = do
 main :: IO ()
 main = processIO $ \inputs output flags →
   do contents ← mapM BS.hGetContents inputs
-     hPutStrLn output $ case mapM getSExp contents of
+     hPutStrLn output $ case mapM getSExps contents of
        Left err → "couldn't parse: " ++ err
        Right term → case checkConsistency $ concat term of
          Right prog → show $ compile flags prog
