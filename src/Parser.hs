@@ -4,7 +4,6 @@ module Parser where
 
 import Prelude hiding (takeWhile)
 import Prelude.Unicode
-import Data.Monoid.Unicode
 import SExp
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Char8 as BS
@@ -19,7 +18,7 @@ getSExps = parseOnly (many1 sexp)
 
 sexp :: Parser SExp
 sexp = constexpr <|> var <|>
-       parens (quote <|> cond <|> define <|> lambda <|> list)
+       parens (progn <|> quote <|> cond <|> define <|> lambda <|> list)
 
 identifier :: Parser BS.ByteString
 identifier = do
@@ -36,6 +35,12 @@ var :: Parser SExp
 var = do
   name ← identifier
   return $ Var name
+
+progn :: Parser SExp
+progn = do
+  lexeme $ string "progn"
+  exprs ← many1 $ lexeme sexp
+  return $ Progn exprs
 
 quote :: Parser SExp
 quote = do

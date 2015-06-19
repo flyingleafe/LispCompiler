@@ -41,6 +41,12 @@ data Instruction = Add String String
                  | Call Label
                  | Ret
 
+addFunction :: CodeFunction → Assembler → Assembler
+addFunction foo code = code { textSec = foo : textSec code }
+
+addGlobalLabel :: Label → Assembler → Assembler
+addGlobalLabel l code = code { globalLabels = l : globalLabels code }
+
 --- SHOW PART
 
 tabbed, bigtabbed :: String → String

@@ -9,6 +9,7 @@ data SExp = Const Int
           | Quote SExp
           | Cond SExp SExp SExp
           | Define BS.ByteString SExp
+          | Progn [SExp]
           | List [SExp]
           | Lambda [BS.ByteString] SExp
             deriving Show
