@@ -14,8 +14,8 @@ lexeme, parens :: Parser a → Parser a
 lexeme p = p <* skipSpace
 parens p = lexeme (string "(") *> lexeme p <* lexeme (string ")")
 
-getSExp :: BS.ByteString → Either String SExp
-getSExp s = parseOnly sexp s
+getSExp :: BS.ByteString → Either String [SExp]
+getSExp s = parseOnly (sexp `sepBy1` (many1 endOfLine)) s
 
 sexp :: Parser SExp
 sexp = constexpr <|> var <|>

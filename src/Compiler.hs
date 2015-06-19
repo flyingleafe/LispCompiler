@@ -3,6 +3,7 @@
 module Compiler where
 
 import Prelude
+import Settings
 import Assembler
 import SExp
 
@@ -14,20 +15,34 @@ compileSexp (Const i)               = ([], [CodeBlob [
                                                Ret ]])
 
 genCallingMain :: [String] → CodeFunction
-genCallingMain names = CodeFunction "main" $ [CodeBlob ((map Call names) ++ [Ret])]
+genCallingMain names = CodeFunction "main" $ [CodeBlob ((map Call names) ++ [Mov "rax" "0", Ret])]
 
 funcNames :: [String]
-funcNames = map (("func" ++) . show) (iterate (+1) 0)
+funcNames = map (("function" ++) . show) (iterate (+1) 0)
 
 isDefine :: SExp → Bool
 isDefine (Define _ _) = True
 isDefine _            = False
 
-compile :: Program → Assembler
-compile sexps = let exprs = map compileSexp $ filter (not . isDefine) sexps in
-                 let functions = zipWith CodeFunction funcNames (map snd exprs) in
-                  Assembler [TextSec $
-                             genCallingMain (map cflabel functions) : functions ,
-                             DataSec $ concat $ map fst exprs]
-                  []
-                  ["main"]
+compileUnnamed :: Program → ([DataLabel], [CodeFunction])
+compileUnnamed sexps = let compiled = map compileSexp sexps in
+                         (concatMap fst compiled, zipWith CodeFunction funcNames (map snd compiled))
+
+compileDefines :: Program → ([DataLabel], [CodeFunction])
+compileDefines s = ([], [])
+
+compile :: [Flag] → Program → Assembler
+compile flags sexps = let (datalabelsND, functionsND)
+                            = compileUnnamed $ filter (not . isDefine) sexps in
+                      let (datalabelsD, functionsD)
+                            = compileDefines $ filter isDefine sexps in
+                      Assembler [TextSec $
+                                 functionsND ++
+                                 functionsD ++
+                                 if WithoutMain `elem` flags
+                                 then []
+                                 else [genCallingMain (map cflabel functionsND)]
+                                ,
+                                 DataSec $ datalabelsND ++ datalabelsD]
+                      []
+                      ["main"]

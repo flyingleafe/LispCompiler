@@ -14,3 +14,7 @@ data SExp = Const Int
             deriving Show
 
 type Program = [SExp]
+
+-- TODO
+checkConsistency :: Program → Either String Program
+checkConsistency = Right
