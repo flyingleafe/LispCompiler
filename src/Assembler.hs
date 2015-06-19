@@ -13,11 +13,12 @@ import Control.Applicative((<$>), (<*), (*>), (<$))
 type Label = String
 
 data Assembler = Assembler
-                 { sections :: [Section]
+                 { textSec :: [CodeFunction]
+                 , dataSec :: [DataLabel]
+                 , bssSec :: [BssLabel]
                  , externLabels :: [Label]
                  , globalLabels :: [Label]
                  }
-data Section = DataSec [DataLabel] | BssSec [BssLabel] | TextSec [CodeFunction]
 data DataLabel = DataLabelS Label String | DataLabelI Label Int
 data BssLabel = BssLabel Label Int
 data CodeFunction = CodeFunction { cflabel :: Label, cfblocks :: [CodeBlock] }
@@ -84,19 +85,16 @@ instance Show Instruction where
   show (Call l)     = shargs1 "call" l
   show (Ret)        = "ret"
 
-instance Show Section where
-  show (DataSec list)  = "\nsection .data\n" ++ (unlines $ map (bigtabbed . show) list)
-  show (BssSec list)   = "\nsection .bss\n"  ++ (unlines $ map (bigtabbed . show) list)
-  show (TextSec list)  = "\nsection .text\n" ++ (unlines $ map show list)
-
 strip' :: String -> String
 strip' = unpack . Data.Text.strip . pack
 
 instance Show Assembler where
-  show (Assembler s e g) = strip' (
+  show (Assembler t d b e g) = strip' (
     unlines (map ((++) "extern ") e) ++ "\n" ++
     unlines (map ((++) "global ") g) ++ "\n" ++
-    unlines (map (((++) "\n") . show) s))
+    "\nsection .text\n" ++ (unlines $ map show t) ++
+    "\nsection .data\n" ++ (unlines $ map (bigtabbed . show) d) ++
+    "\nsection .bss\n"  ++ (unlines $ map (bigtabbed . show) b))
 
 -- PARSER START
 
