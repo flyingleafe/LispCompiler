@@ -1,10 +1,11 @@
-{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude #-}
+{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude, FlexibleInstances, OverlappingInstances #-}
 
 module Assembler where
 
 import Prelude
 import Control.Monad
 import Data.Text (strip, unpack, pack)
+import Data.Monoid
 import System.IO
 import Text.ParserCombinators.Parsec
 import Control.DeepSeq (rnf)
@@ -47,6 +48,14 @@ addFunction foo code = code { textSec = foo : textSec code }
 addGlobalLabel :: Label → Assembler → Assembler
 addGlobalLabel l code = code { globalLabels = l : globalLabels code }
 
+instance Monoid [CodeBlock] where
+    mempty = []
+    mappend [] b = b
+    mappend a [] = a
+    mappend a b = case (last a, head b) of
+                    (CodeBlob as, CodeBlob bs) → init a ++ (CodeBlob $ as ++ bs) : tail b
+                    _ → a ++ b
+
 --- SHOW PART
 
 tabbed, bigtabbed :: String → String
@@ -67,7 +76,7 @@ instance Show BssLabel where
   show (BssLabel l i) = l ++ ":  resb" ++ show i
 
 instance Show CodeFunction where
-  show (CodeFunction l s) = l ++ ":\n" ++ (unlines $ map show s)
+  show (CodeFunction l s) = l ++ ":\n_" ++ l ++ ":\n" ++ (unlines $ map show s)
 
 instance Show CodeBlock where
   show (LocalLabel l) = bigtabbed $ "." ++ l

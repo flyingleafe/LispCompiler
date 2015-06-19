@@ -7,12 +7,11 @@ import Prelude.Unicode
 import Settings
 import Assembler
 import SExp
+import Builtins
 import Control.Monad.State
-import Control.Applicative
+import Control.Applicative hiding (Const)
+import qualified Data.ByteString.Char8 as BS
 
-{--
-
---}
 type Error = String
 type Name = String
 
@@ -28,25 +27,6 @@ data Function = Function { fname  :: Name
                          }
 
 {--
-  A datatype representing a place of argument.
-  Arguments can be placed on stack or to registers
---}
-data ArgPlace = Stack | Reg String
-
-{--
-  This is a datatype presenting builtin functions, like arithmetic operations.
-  Builtin functions may be of two kinds:
-
-  * externally linked functions, like printf (they have label to call)
-  * inline operations, like arithmetic operations (they have body to inline)
-
-  `name` field is name of function in Lisp,
-  `args` field is the list of places where function arguments should be placed
---}
-data Builtin = Extern { name :: Name, args :: [ArgPlace], label :: Label }
-             | Inline { name :: Name, args :: [ArgPlace], body :: [CodeBlock] }
-
-{--
   Now compiler state consists only of defined functions map,
   but a lot of other stuff will be here soon
 --}
@@ -57,14 +37,6 @@ data CompilerState = CS { functions :: [(Name, Function)] }
   much like parser
 --}
 type Compiler = StateT CompilerState (Either Error)
-
--- here should be put +, -, *, / and others
-builtins :: [Builtin]
-builtins = [{-- TBD --}]
-
--- True if name is reserved for builtin
-builtinName :: Name → Bool
-builtinName nm = any (\b → name b ≡ nm) builtins
 
 compile :: [Flag] → Program → Either Error Assembler
 compile flags prog = evalStateT (compileM flags prog) (CS [])
@@ -83,7 +55,8 @@ compileM flags prog = do
   defines ← gets $ map snd ∘ functions
   funcs ← mapM compileFunction defines
 
-  let code = Assembler funcs [] [] [] []
+  let flabels = map cflabel funcs
+      code = Assembler funcs [] [] [] $ flabels ++ (map ("_" ++) flabels)
 
   if WithoutMain ∈ flags
   then return code
@@ -110,7 +83,15 @@ compileFunction foo = do
   A function which should compile `SExp` into assembler code.
 --}
 compileBody :: SExp → Compiler [CodeBlock]
+compileBody (Define _ _) = fail "Defines are not allowed in the body"
 compileBody (Progn ss) = concat <$> mapM compileBody ss
+compileBody (Const n) = return [CodeBlob [Mov "rax" (show n)]]
+compileBody (List ((Var f):args)) =
+    case getBuiltin (BS.unpack f) of
+      Nothing → fail "unsupported non-builtin"
+      Just b → if length args ≢ argn b
+               then fail "wrong number of args"
+               else body b <$> mapM compileBody args
 compileBody _ = (⊥)
 
 {--
@@ -118,7 +99,11 @@ compileBody _ = (⊥)
   TBD
 --}
 buildScopeTables :: Program → Compiler ()
-buildScopeTables prog = return ()
+buildScopeTables prog = put $ CS $ map toFunc $ filter isFunDefinition prog
+    where toFunc (Define nm (Lambda args bod)) =
+              (nm', Function nm' nm' (map BS.unpack args) bod)
+                  where nm' = BS.unpack nm
+
 
 {--
 -- returns labels that are needed and code block

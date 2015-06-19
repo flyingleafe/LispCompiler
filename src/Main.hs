@@ -36,7 +36,7 @@ parseArgs (s:[])         = Right ([], [s])
 parseArgs (s:xs)         = parseArgs xs >>= addInput s
 parseArgs []             = Left $ "No input specified"
 
-processIO :: ([Handle] → Handle → [Flag]→ IO()) → IO()
+processIO :: ([Handle] → Handle → [Flag] → IO ()) → IO ()
 processIO handling = do
   args ← parseArgs <$> getArgs
   case args of
@@ -48,12 +48,11 @@ processIO handling = do
      mapM hClose inputFiles
      hClose output
 
-
 main :: IO ()
 main = processIO $ \inputs output flags →
   do contents ← mapM BS.hGetContents inputs
      hPutStrLn output $ case mapM getSExps contents of
        Left err → "couldn't parse: " ++ err
-       Right term → case checkConsistency $ concat term of
-         Right prog → show $ compile flags prog
-         Left  err   → "Consistency error: " ++ err
+       Right term → case compile flags $ concat term of
+         Left err → "Compilation error: " ++ err
+         Right prog → show prog

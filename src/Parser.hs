@@ -11,7 +11,7 @@ import Control.Applicative ((<|>), (<*), (*>))
 
 lexeme, parens :: Parser a → Parser a
 lexeme p = p <* skipSpace
-parens p = lexeme (string "(") *> lexeme p <* lexeme (string ")")
+parens p = lexeme (char '(') *> lexeme p <* lexeme (char ')')
 
 getSExps :: BS.ByteString → Either String [SExp]
 getSExps = parseOnly (many1 sexp)
@@ -22,7 +22,7 @@ sexp = constexpr <|> var <|>
 
 identifier :: Parser BS.ByteString
 identifier = do
-  let okChar c = isAlpha_ascii c ∨ inClass "_-/+*'" c
+  let okChar c = isAlpha_ascii c ∨ inClass "-_/+*'" c
   token ← lexeme $ takeWhile1 okChar
   return token
 
@@ -58,7 +58,7 @@ cond = do
 
 define :: Parser SExp
 define = do
-  lexeme $ string "define"
+  lexeme $ string "define" <* space
   name ← identifier
   value ← sexp
   return $ Define name value
@@ -66,7 +66,7 @@ define = do
 lambda :: Parser SExp
 lambda = do
   lexeme $ string "lambda"
-  args ← parens $ many' identifier
+  args ← lexeme $ parens $ many' identifier
   body ← sexp
   return $ Lambda args body
 
