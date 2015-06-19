@@ -4,6 +4,7 @@ module Assembler where
 
 import Prelude
 import Control.Monad
+import Data.Text (strip, unpack, pack)
 import System.IO
 import Text.ParserCombinators.Parsec
 import Control.DeepSeq (rnf)
@@ -16,9 +17,10 @@ data Assembler = Assembler
                  , externLabels :: [Label]
                  , globalLabels :: [Label]
                  }
-data Section = DataSec [DataLabel] | BssSec [BssLabel] | TextSec [CodeBlock]
+data Section = DataSec [DataLabel] | BssSec [BssLabel] | TextSec [CodeFunction]
 data DataLabel = DataLabelS Label String | DataLabelI Label Int
 data BssLabel = BssLabel Label Int
+data CodeFunction = CodeFunction { cflabel :: Label, cfblocks :: [CodeBlock] }
 -- local labels are passed without '.' char at the start
 data CodeBlock = LocalLabel Label | CodeBlob [Instruction]
 data Instruction = Add String String
@@ -38,6 +40,8 @@ data Instruction = Add String String
                  | Call Label
                  | Ret
 
+--- SHOW PART
+
 tabbed, bigtabbed :: String → String
 tabbed = (++) "    "
 bigtabbed = (++) "        "
@@ -54,6 +58,9 @@ instance Show DataLabel where
 
 instance Show BssLabel where
   show (BssLabel l i) = l ++ ":  resb" ++ show i
+
+instance Show CodeFunction where
+  show (CodeFunction l s) = l ++ ":\n" ++ (unlines $ map show s)
 
 instance Show CodeBlock where
   show (LocalLabel l) = bigtabbed $ "." ++ l
@@ -82,29 +89,37 @@ instance Show Section where
   show (BssSec list)   = "\nsection .bss\n"  ++ (unlines $ map (bigtabbed . show) list)
   show (TextSec list)  = "\nsection .text\n" ++ (unlines $ map show list)
 
+strip' :: String -> String
+strip' = unpack . Data.Text.strip . pack
+
 instance Show Assembler where
-  show (Assembler s e g) =
+  show (Assembler s e g) = strip' (
     unlines (map ((++) "extern ") e) ++ "\n" ++
     unlines (map ((++) "global ") g) ++ "\n" ++
-    unlines (map (((++) "\n\n\n") . show) s)
+    unlines (map (((++) "\n") . show) s))
 
--- Parsing
+-- PARSER START
 
+-- parses whitespaces and newlines, ≥0 or >0
 wspaces, wspaces', newlines, newlines' :: Parser String
 wspaces = many1 $ char ' '
 wspaces' = many $ char ' '
 newlines = many1 newline
-newlines' = many $ char '\n'
+newlines' = many newline
 
 lexeme, parens :: Parser a → Parser a
 lexeme s = try $ wspaces' >> s
 parens = try . between (char '[') (char ']')
 
+-- lineComment parses one distinct comment line with \n on the end
+-- lineComments parses ≥0 lineComments with optional \n on the end
+-- afterCodeComment parses spaces, ";" and everything after it except \n
 lineComment, lineComments, afterCodeComment :: Parser String
 lineComment = lexeme (try (string ";;;") <|> string (";;")) >> many (noneOf ("\n"))
 afterCodeComment = lexeme (string ";" *> many (noneOf "\n"))
-lineComments = concat <$> many (lineComment <* optional newlines)
+lineComments = concat <$> many (lineComment <* newlines')
 
+-- parses square brackets and adds them to return value
 parens' :: Parser String → Parser String
 parens' m = do
   l ← try $ string "["
@@ -112,18 +127,23 @@ parens' m = do
   r ← try $ string "]"
   return $ l ++ middle ++ r
 
+-- parseLabel parses labels like "label_cool1"
+-- anyLabel parses parseLabel optionally starting at '.'
 parseLabel, anyLabel :: Parser String
 parseLabel = try $ many1 $ letter <|> digit <|> (char '_')
 anyLabel = liftM2 (++) (option "" (string ".")) parseLabel
 
+-- codeParses parse >0 lines of code, skipping after-code comments
 codeParser :: Parser CodeBlock
 codeParser = CodeBlob <$> (sepEndBy1 (try instrParser <* optional afterCodeComment)
                            (try (wspaces' >> newlines)))
 
+-- localLabelParser parses local label line, skipping \n's after it
 localLabelParser :: Parser CodeBlock
 localLabelParser = LocalLabel <$> (try (wspaces >> char '.') >> parseLabel
                                    <* (optional $ void newlines))
-
+-- arg parses argument of command -- register (or like-register), label in
+-- brackets or arithmetic operation in brackets like [2*rsi+6].
 arg :: Parser String
 arg = liftM2 (++) (option "" $ choice [try $ string "byte",
                                        try $ string "word",
@@ -133,8 +153,6 @@ arg = liftM2 (++) (option "" $ choice [try $ string "byte",
        (parens' parseLabel))
       <|>
       many (try lower <|> try digit)
-
-
 
 instrParserG2 :: (String → String → Instruction) → String → Parser Instruction
 instrParserG2 constr s = do
@@ -156,6 +174,7 @@ instrParserG1G constr p str = do
 instrParserG1 :: (String → Instruction) → String → Parser Instruction
 instrParserG1 constr s = instrParserG1G constr arg $ string s
 
+-- instrParses parses exactly one instruction with it's arguments
 instrParser :: Parser Instruction
 instrParser = instrParserG2 Add "add"
               <|> instrParserG2 Sub "sub"
@@ -185,20 +204,22 @@ instrParser = instrParserG2 Add "add"
                           return $ Jcc s1 s2)
               <|> try (Ret <$ (wspaces' *> (string "ret") <* wspaces'))
 
+-- parses local labels or code blobs separated by newlines or comment lines
+-- up to eof!
 parseCodeBlocks :: Parser [CodeBlock]
 parseCodeBlocks = (sepEndBy1 (codeParser <|> try localLabelParser )
                    (lineComments <|> newlines'))
                   <* eof
-                  -- <* eof
-                  --(void newlines <|> eof)
 
+-- helper
 parsem :: Parser a → String → Either ParseError a
 parsem b str = parse b "oops" str
 
 -- these two are for getting code from templates
+-- they parse the same grammar, one is just wrapping another
 
-parseTextSec :: String → Either ParseError Section
-parseTextSec = parse (TextSec <$> parseCodeBlocks) "oops :("
+--parseTextSec :: String → Either ParseError Section
+--parseTextSec = parse (TextSec <$> [] <$> CodeFunction "foo" <$> parseCodeBlocks) "oops :("
 
 parseCode :: String → Either ParseError [CodeBlock]
 parseCode = parse parseCodeBlocks "oops :("

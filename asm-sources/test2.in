@@ -3,6 +3,7 @@
 
         mov     rax, rdi
         xor     rdx, rdx
+        .looploopskij
         div     rcx                   ; wtf!!!
         cmp     rdx, 0
         je      .skip1

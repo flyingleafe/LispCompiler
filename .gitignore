@@ -1,3 +1,5 @@
 dist/*
 *.o
 Main
+tmp/
+

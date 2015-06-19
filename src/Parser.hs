@@ -14,6 +14,9 @@ lexeme, parens :: Parser a → Parser a
 lexeme p = p <* skipSpace
 parens p = lexeme (string "(") *> lexeme p <* lexeme (string ")")
 
+getSExp :: BS.ByteString → Either String SExp
+getSExp s = parseOnly sexp s
+
 sexp :: Parser SExp
 sexp = constexpr <|> var <|>
        parens (quote <|> cond <|> define <|> lambda <|> list)

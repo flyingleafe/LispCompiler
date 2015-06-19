@@ -13,7 +13,7 @@ build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
 
-executable fv-lisp-compiler
+executable compiler
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
@@ -21,6 +21,23 @@ executable fv-lisp-compiler
                      , deepseq
                      , directory
                      , parsec
+                     , text
+                     , base >= 4.6
+                     , base-unicode-symbols >= 0.2
+                     , bytestring >= 0.10
+
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
+executable asm-tester
+  main-is:             AsmTester.hs
+  -- other-modules:
+  -- other-extensions:
+  build-depends:       attoparsec >= 0.10
+                     , deepseq
+                     , directory
+                     , parsec
+                     , text
                      , base >= 4.6
                      , base-unicode-symbols >= 0.2
                      , bytestring >= 0.10
