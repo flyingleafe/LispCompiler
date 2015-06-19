@@ -10,32 +10,72 @@ import SExp
 import Control.Monad.State
 import Control.Applicative
 
+{--
+
+--}
 type Error = String
 type Name = String
 
+{--
+  This is the function definition datatype
+  It contains everything to compile function into a labeled code block
+  Some time after here'll be a tricky field named "closure" also
+--}
 data Function = Function { fname  :: Name
                          , flabel :: Label
-                         , args  :: [Name]
+                         , fargs  :: [Name]
                          , fbody  :: SExp
                          }
 
-data Builtin = Extern { name :: Name, label :: Label }
-             | Inline { name :: Name, body :: [CodeBlock] }
+{--
+  A datatype representing a place of argument.
+  Arguments can be placed on stack or to registers
+--}
+data ArgPlace = Stack | Reg String
 
+{--
+  This is a datatype presenting builtin functions, like arithmetic operations.
+  Builtin functions may be of two kinds:
+
+  * externally linked functions, like printf (they have label to call)
+  * inline operations, like arithmetic operations (they have body to inline)
+
+  `name` field is name of function in Lisp,
+  `args` field is the list of places where function arguments should be placed
+--}
+data Builtin = Extern { name :: Name, args :: [ArgPlace], label :: Label }
+             | Inline { name :: Name, args :: [ArgPlace], body :: [CodeBlock] }
+
+{--
+  Now compiler state consists only of defined functions map,
+  but a lot of other stuff will be here soon
+--}
 data CompilerState = CS { functions :: [(Name, Function)] }
 
+{--
+  A compiler is something with state what may fail with error,
+  much like parser
+--}
 type Compiler = StateT CompilerState (Either Error)
 
 -- here should be put +, -, *, / and others
 builtins :: [Builtin]
 builtins = [{-- TBD --}]
 
+-- True if name is reserved for builtin
 builtinName :: Name → Bool
 builtinName nm = any (\b → name b ≡ nm) builtins
 
 compile :: [Flag] → Program → Either Error Assembler
 compile flags prog = evalStateT (compileM flags prog) (CS [])
 
+{--
+  Main compile function.
+
+  Makes 2 steps:
+  1) Scope analysis and building a scope tables
+  2) Making code
+--}
 compileM :: [Flag] → Program → Compiler Assembler
 compileM flags prog = do
   buildScopeTables prog
@@ -57,19 +97,24 @@ isFunDefinition :: SExp → Bool
 isFunDefinition (Define _ (Lambda _ _)) = True
 isFunDefinition _ = False
 
+{--
+  Translates `Function` to `CodeFunction`
+  Compiles function body and make it suitable assembler function body
+--}
 compileFunction :: Function → Compiler CodeFunction
-compileFunction foo = if builtinName (fname foo)
-                      then fail $ "Name '" ++ fname foo ++ " is reserved"
-                      else do
-                        body ← compileBody $ fbody foo
-                        return $ CodeFunction (flabel foo) $ body ++ [CodeBlob [Ret]]
+compileFunction foo = do
+  code ← compileBody $ fbody foo
+  return $ CodeFunction (flabel foo) $ code ++ [CodeBlob [Ret]]
 
+{--
+  A function which should compile `SExp` into assembler code.
+--}
 compileBody :: SExp → Compiler [CodeBlock]
 compileBody (Progn ss) = concat <$> mapM compileBody ss
 compileBody _ = (⊥)
 
 {--
-  it should build the scope tables and check everything
+  Performs scope analysis and scope tables building
   TBD
 --}
 buildScopeTables :: Program → Compiler ()
