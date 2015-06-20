@@ -43,19 +43,19 @@ builtins = [ Inline "+" 2 plus
 
 plus, minus, mul :: [[CodeBlock]] → [CodeBlock]
 plus [a, b] = a ⊕
-              [CodeBlob [Push "rdx", Mov "rdx" "rax"]] ⊕
+              [CodeBlob [Push "rax"]] ⊕
               b ⊕
-              [CodeBlob [Add "rax" "rdx", Pop "rdx"]]
+              [CodeBlob [Pop "rdx", Add "rax" "rdx"]]
 
 minus [a, b] = b ⊕
-               [CodeBlob [Push "rdx", Mov "rdx" "rax"]] ⊕
+               [CodeBlob [Push "rax"]] ⊕
                a ⊕
-               [CodeBlob [Sub "rax" "rdx", Pop "rdx"]]
+               [CodeBlob [Pop "rdx", Sub "rax" "rdx"]]
 
 mul [a, b] = a ⊕
-             [CodeBlob [Push "rdx", Mov "rdx" "rax"]] ⊕
+             [CodeBlob [Push "rax"]] ⊕
              b ⊕
-             [CodeBlob [Mul "rdx", Pop "rdx"]]
+             [CodeBlob [Pop "rdx", Mul "rdx"]]
 
 -- div [a, b] = a ++
              -- [CodeBlob [Push "rdx"]]
