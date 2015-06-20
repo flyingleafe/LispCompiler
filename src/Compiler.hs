@@ -24,13 +24,20 @@ data Function = Function { fname  :: Name
                          , flabel :: Label
                          , fargs  :: [Name]
                          , fbody  :: SExp
+                         , frameSize :: Int
                          }
 
 {--
-  Now compiler state consists only of defined functions map,
-  but a lot of other stuff will be here soon
+  `flags` : List of passed flags
+  `functions` : Map of global functions by name
+  `locals` : List of current local variables. Variable value is placed
+  in [ebp - N]
 --}
-data CompilerState = CS { functions :: [(Name, Function)] }
+data CompilerState = CS { flags :: [Flag]
+                        , functions :: [(Name, Function)]
+                        , locals :: [(Name, SExp)]
+                        , sfSize :: Int
+                        }
 
 {--
   A compiler is something with state what may fail with error,
@@ -39,7 +46,7 @@ data CompilerState = CS { functions :: [(Name, Function)] }
 type Compiler = StateT CompilerState (Either Error)
 
 compile :: [Flag] → Program → Either Error Assembler
-compile flags prog = evalStateT (compileM flags prog) (CS [])
+compile flags prog = evalStateT (compileM prog) (CS flags [] [] 0)
 
 {--
   Main compile function.
@@ -48,17 +55,18 @@ compile flags prog = evalStateT (compileM flags prog) (CS [])
   1) Scope analysis and building a scope tables
   2) Making code
 --}
-compileM :: [Flag] → Program → Compiler Assembler
-compileM flags prog = do
+compileM :: Program → Compiler Assembler
+compileM prog = do
   buildScopeTables prog
 
   defines ← gets $ map snd ∘ functions
   funcs ← mapM compileFunction defines
 
   let flabels = map cflabel funcs
-      code = Assembler funcs [] [] [] $ flabels ++ (map ("_" ++) flabels)
+      code = Assembler funcs [] [] [] flabels
 
-  if WithoutMain ∈ flags
+  withoutMain ← flagSet WithoutMain
+  if withoutMain
   then return code
   else do
     let mainBody = filter (not ∘ isFunDefinition) prog
@@ -70,6 +78,20 @@ isFunDefinition :: SExp → Bool
 isFunDefinition (Define _ (Lambda _ _)) = True
 isFunDefinition _ = False
 
+flagSet :: Flag → Compiler Bool
+flagSet f = gets $ (f ∈) ∘ flags
+
+{--
+  Get function label with respect to settings:
+  prepend it with `_` if flag is passed
+--}
+getFuncLabel :: Function → Compiler Label
+getFuncLabel foo = do
+  isPrefixed ← flagSet LabelPrefixes
+  if isPrefixed
+  then return $ "_" ++ flabel foo
+  else return $ flabel foo
+
 {--
   Translates `Function` to `CodeFunction`
   Compiles function body and make it suitable assembler function body
@@ -77,7 +99,8 @@ isFunDefinition _ = False
 compileFunction :: Function → Compiler CodeFunction
 compileFunction foo = do
   code ← compileBody $ fbody foo
-  return $ CodeFunction (flabel foo) $ code ++ [CodeBlob [Ret]]
+  lbl ← getFuncLabel foo
+  return $ CodeFunction lbl $ code ++ [CodeBlob [Ret]]
 
 {--
   A function which should compile `SExp` into assembler code.
@@ -87,7 +110,7 @@ compileBody (Define _ _) = fail "Defines are not allowed in the body"
 compileBody (Progn ss) = concat <$> mapM compileBody ss
 compileBody (Const n) = return [CodeBlob [Mov "rax" (show n)]]
 compileBody (List ((Var f):args)) =
-    case getBuiltin (BS.unpack f) of
+    case getBuiltin f of
       Nothing → fail "unsupported non-builtin"
       Just b → if length args ≢ argn b
                then fail "wrong number of args"
@@ -99,50 +122,16 @@ compileBody _ = (⊥)
   TBD
 --}
 buildScopeTables :: Program → Compiler ()
-buildScopeTables prog = put $ CS $ map toFunc $ filter isFunDefinition prog
-    where toFunc (Define nm (Lambda args bod)) =
-              (nm', Function nm' nm' (map BS.unpack args) bod)
-                  where nm' = BS.unpack nm
+buildScopeTables prog = do
+  state ← get
+  let funcs = map toFunc $ filter isFunDefinition prog
+      toFunc (Define nm (Lambda args bod)) = (nm, Function nm nm args bod sfSize)
+              where sfSize = length args + countLocals bod
+  put $ state { functions = funcs }
 
-
-{--
--- returns labels that are needed and code block
-compileSexp :: SExp → ([DataLabel], [CodeBlock])
-compileSexp (Const i)                       = ([], [CodeBlob [
-                                                       Mov "eax" (show i),
-                                                       Ret ]])
-compileSexp (List ((Var "-"):(Const i):[])) = undefined
-
-genCallingMain :: [String] → CodeFunction
-genCallingMain names = CodeFunction "main" $ [CodeBlob ((map Call names) ++ [Mov "rax" "0", Ret])]
-
-funcNames :: [String]
-funcNames = map (("function" ++) . show) (iterate (+1) 0)
-
-isDefine :: SExp → Bool
-isDefine (Define _ _) = True
-isDefine _            = False
-
-compileUnnamed :: Program → ([DataLabel], [CodeFunction])
-compileUnnamed sexps = let compiled = map compileSexp sexps in
-                         (concatMap fst compiled, zipWith CodeFunction funcNames (map snd compiled))
-
-compileDefines :: Program → ([DataLabel], [CodeFunction])
-compileDefines s = ([], [])
-
-compile :: [Flag] → Program → Assembler
-compile flags sexps = let (datalabelsND, functionsND)
-                            = compileUnnamed $ filter (not . isDefine) sexps in
-                      let (datalabelsD, functionsD)
-                            = compileDefines $ filter isDefine sexps in
-                      Assembler [TextSec $
-                                 functionsND ++
-                                 functionsD ++
-                                 if WithoutMain `elem` flags
-                                 then []
-                                 else [genCallingMain (map cflabel functionsND)]
-                                ,
-                                 DataSec $ datalabelsND ++ datalabelsD]
-                      []
-                      ["main"]
---}
+countLocals :: SExp → Int
+countLocals (Let binds e) = length binds + countLocals e + (sum $ map (countLocals ∘ snd) binds)
+countLocals (Cond a b c) = countLocals a + countLocals b + countLocals c
+countLocals (Quote e) = countLocals e
+countLocals (List ss) = sum $ map countLocals ss
+countLocals (Progn ss) = sum $ map countLocals ss

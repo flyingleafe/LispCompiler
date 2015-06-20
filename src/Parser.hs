@@ -18,13 +18,13 @@ getSExps = parseOnly (many1 sexp)
 
 sexp :: Parser SExp
 sexp = constexpr <|> var <|>
-       parens (progn <|> quote <|> cond <|> define <|> lambda <|> list)
+       parens (progn <|> quote <|> cond <|> define <|> letexpr <|> lambda <|> list)
 
-identifier :: Parser BS.ByteString
+identifier :: Parser Identifier
 identifier = do
   let okChar c = isAlpha_ascii c ∨ inClass "-_/+*'" c
   token ← lexeme $ takeWhile1 okChar
-  return token
+  return $ BS.unpack token
 
 constexpr :: Parser SExp
 constexpr = do
@@ -63,10 +63,23 @@ define = do
   value ← sexp
   return $ Define name value
 
+letexpr :: Parser SExp
+letexpr = do
+  lexeme $ string "let"
+  bindings ← parens $ many1 binding
+  body ← sexp
+  return $ Let bindings body
+
+binding :: Parser (Identifier, SExp)
+binding = parens $ do
+            key ← identifier
+            val ← sexp
+            return (key, val)
+
 lambda :: Parser SExp
 lambda = do
   lexeme $ string "lambda"
-  args ← lexeme $ parens $ many' identifier
+  args ← parens $ many' identifier
   body ← sexp
   return $ Lambda args body
 

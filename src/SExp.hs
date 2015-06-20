@@ -2,16 +2,17 @@
 
 module SExp where
 
-import qualified Data.ByteString as BS
+type Identifier = String
 
 data SExp = Const Int
-          | Var BS.ByteString
+          | Var Identifier
           | Quote SExp
           | Cond SExp SExp SExp
-          | Define BS.ByteString SExp
+          | Define Identifier SExp
           | Progn [SExp]
+          | Let [(Identifier, SExp)] SExp
           | List [SExp]
-          | Lambda [BS.ByteString] SExp
+          | Lambda [Identifier] SExp
             deriving Show
 
 type Program = [SExp]

@@ -6,6 +6,7 @@ import Prelude
 import Data.List
 
 data Flag = WithoutMain
+          | LabelPrefixes
           | SpecifiedOutput String
           deriving Eq
 

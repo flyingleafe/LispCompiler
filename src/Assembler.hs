@@ -76,7 +76,7 @@ instance Show BssLabel where
   show (BssLabel l i) = l ++ ":  resb" ++ show i
 
 instance Show CodeFunction where
-  show (CodeFunction l s) = l ++ ":\n_" ++ l ++ ":\n" ++ (unlines $ map show s)
+  show (CodeFunction l s) = l ++ ":\n" ++ (unlines $ map show s)
 
 instance Show CodeBlock where
   show (LocalLabel l) = bigtabbed $ "." ++ l

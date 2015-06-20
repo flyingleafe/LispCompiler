@@ -16,8 +16,9 @@ import SExp
 usage :: String
 usage =
   "Usage: compiler [Flag]* InputFile \n\
-   \-M         disable script mode (compile without main)\n\
-   \-o output  specify output file"
+  \    -M         disable script mode (compile without main)\n\
+  \    -p         enable function labels prefix (for Darwin and Windows)\n\
+  \    -o output  specify output file"
 
 -- Flags, input file, output files
 type Configuration = ([Flag], [String])
@@ -30,6 +31,7 @@ addInput s (fs, s1) = Right (fs, s:s1)
 
 parseArgs :: [String] → Either String Configuration
 parseArgs ("-M":xs)      = parseArgs xs >>= addFlag WithoutMain
+parseArgs ("-p":xs)      = parseArgs xs >>= addFlag LabelPrefixes
 parseArgs ("-o":name:xs) = parseArgs xs >>= addFlag (SpecifiedOutput name)
 parseArgs (('-':f):_)    = Left $ "Unknown flag: -" ++ f
 parseArgs (s:[])         = Right ([], [s])
