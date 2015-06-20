@@ -48,7 +48,7 @@ data Instruction = Add String String
                  | Jcc String Label
                  | Call Label
                  | Enter String String
-                 | Leave String
+                 | Leave
                  | Ret
 
 addFunction :: CodeFunction → Assembler → Assembler
@@ -121,7 +121,9 @@ instance Show Instruction where
   show (Jump l)     = shargs1 "jmp" l
   show (Jcc c l)    = shargs1 ("j" ++ c) l
   show (Call l)     = shargs1 "call" l
-  show (Ret)        = "ret"
+  show (Enter a b)  = shargs2 "enter" a b
+  show Leave        = "leave"
+  show Ret          = "ret"
 
 strip' :: String -> String
 strip' = unpack . Data.Text.strip . pack

@@ -8,7 +8,9 @@ import Settings
 import Assembler
 import SExp
 import Builtins
+import Data.List
 import Data.Monoid.Unicode
+import Data.Maybe
 import Control.Monad.State
 import Control.Applicative hiding (Const)
 
@@ -123,19 +125,55 @@ newLocalLabel = do
 addLocalVar :: Name → Compiler ()
 addLocalVar v = modify $ \cs → cs { locals = v : locals cs }
 
+removeLocalVar :: Name → Compiler ()
+removeLocalVar v = modify $ \cs → cs { locals = delete v (locals cs) }
+
+localVarPlace :: Name → Compiler (Maybe String)
+localVarPlace v = do
+  locs ← gets locals
+  return $ do
+    i ← elemIndex v locs
+    return $ "[rbp - " ++ show ((length locs - i) ⋅ 8) ++ "]"
+
 {--
   Translates `Function` to `CodeFunction`
   Compiles function body and make it suitable assembler function body
+  In particular, generates code for creating proper stack frame
 --}
 compileFunction :: Function → Compiler CodeFunction
 compileFunction foo = do
+  let movArgCode = moveArguments $ fargs foo
+
+  initStackFrame foo
   code ← compileBody $ fbody foo
-  return $ CodeFunction (flabel foo) $ code ⊕ [CodeBlob [Ret]]
+  resetStackFrame foo
+
+  let code' = [CodeBlob [Enter (show $ 8 * frameSize foo) "0"]] ⊕
+              movArgCode ⊕
+              code ⊕
+              [CodeBlob [Leave, Ret]]
+
+  return $ CodeFunction (flabel foo) code'
+
+initStackFrame :: Function → Compiler ()
+initStackFrame foo = do
+  forM_ (fargs foo) addLocalVar
+  modify $ \cs → cs { currentFrameSize = frameSize foo }
+
+resetStackFrame :: Function → Compiler ()
+resetStackFrame foo = do
+  forM_ (fargs foo) removeLocalVar
+  modify $ \cs → cs { currentFrameSize = 0 }
+
+argsOrder :: [String]
+argsOrder = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
 
 moveArguments :: [Name] → [CodeBlock]
 moveArguments = movArgs 0
     where movArgs _ [] = []
-          movArgs 0 (v:vs) = [CodeBlob [Mov "[ebp - 1]" "rdi"]]
+          movArgs n (v:vs) = let dst = "[rbp - " ++ show ((n + 1)*8) ++ "]"
+                             in [CodeBlob [Mov dst (argsOrder !! n)]] ⊕
+                                movArgs (n + 1) vs
 
 {--
   A function which should compile `SExp` into assembler code.
@@ -164,8 +202,25 @@ compileBody (List ((Var f):args)) =
       Just b → body b <$> mapM compileBody args
 
 compileBody (List ((Const n):_)) = fail $ "'" ++ show n ++"' is not a function."
+compileBody (Let bnd e) = do
+                   binds ← mapM bindVar bnd
+                   eb ← compileBody e
+                   return $ mconcat binds ⊕ eb
+
+compileBody (Var v) = do
+  pl ← localVarPlace v
+  case pl of
+    Nothing → fail $ "Undeclared variable '" ++ v ++ "'"
+    Just place → return [CodeBlob [Mov "rax" place]]
 
 compileBody _ = fail "unsupported language"
+
+bindVar :: (Name, SExp) → Compiler [CodeBlock]
+bindVar (v, e) = do
+  eb ← compileBody e
+  addLocalVar v
+  place ← localVarPlace v
+  return $ eb ⊕ [CodeBlob [Mov (fromJust place) "rax"]]
 
 {--
   Performs scope analysis and scope tables building
@@ -187,3 +242,4 @@ countLocals (Cond a b c) = countLocals a + countLocals b + countLocals c
 countLocals (Quote e) = countLocals e
 countLocals (List ss) = sum $ map countLocals ss
 countLocals (Progn ss) = sum $ map countLocals ss
+countLocals _ = 0
