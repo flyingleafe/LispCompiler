@@ -20,7 +20,7 @@ do
         c0=$?
         yasm -felf64 -gdwarf2 -o tmp/test.o tmp/test.yasm
         c1=$?
-        clang++ tmp/test.o $externtester -o tmp/test
+        c++ tmp/test.o $externtester -o tmp/test
         c2=$?
         chmod 744 tmp/test
         ./tmp/test >> ./tmp/output
