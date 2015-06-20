@@ -50,7 +50,7 @@ data CompilerState = CS { flags :: [Flag]
 type Compiler = StateT CompilerState (Either Error)
 
 compile :: [Flag] → Program → Either Error Assembler
-compile flags prog = evalStateT (compileM prog) (CS flags [] [] [] 0)
+compile flags prog = evalStateT (compileM prog) (CS flags [] [] [])
 
 {--
   Main compile function.
