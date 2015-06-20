@@ -4,6 +4,7 @@ module LibLoader where
 
 import Settings
 import Assembler
+import AssemblerParser
 
 {--
   Parses flags, gets all the desired libs from files if possible,
