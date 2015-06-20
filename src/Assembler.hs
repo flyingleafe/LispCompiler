@@ -29,29 +29,29 @@ data CodeBlock = LocalLabel Label | CodeBlob [Instruction]
   I don't see any viable solution to make the process easier
   (any attempt usually leads to spaghetty effect)
 --}
-data Instruction = Add String String
-                 | Sub String String
-                 | Cmp String String
-                 | Test String String
-                 | Mov String String
-                 | Not String
-                 | Neg String
-                 | Xor String String
-                 | And String String
-                 | Or String String
-                 | Shr String String
-                 | Shl String String
-                 | Lea String String
-                 | Inc String
-                 | Dec String
-                 | Div String
-                 | Mul String
-                 | Push String
-                 | Pop String
-                 | Jump Label
-                 | Jcc String Label
-                 | Call Label
+data Instruction = Add   String String
+                 | Sub   String String
+                 | Cmp   String String
+                 | Test  String String
+                 | Mov   String String
                  | Enter String String
+                 | Xor   String String
+                 | And   String String
+                 | Or    String String
+                 | Shr   String String
+                 | Shl   String String
+                 | Lea   String String
+                 | Not   String
+                 | Neg   String
+                 | Inc   String
+                 | Dec   String
+                 | Div   String
+                 | Mul   String
+                 | Push  String
+                 | Pop   String
+                 | Call  Label
+                 | Jump  Label
+                 | Jcc   String Label
                  | Leave
                  | Ret
 
