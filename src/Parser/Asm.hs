@@ -64,8 +64,7 @@ arg = liftM2 append ((option empty $ choice [string "byte",
                                           string "word",
                                           string "dword",
                                           string "qword"]) <* wspaces')
-      ((parens' parseLabel) <|>
-        (parens' $ takeWhile (isLower <∨> isDigit <∨> (inClass "+*-") <∨> (≡ ' '))))
+      (parens' $ takeWhile (isLower <∨> isDigit <∨> (inClass "+*_.-") <∨> (≡ ' ')))
       <|>
       takeWhile1 (isLower <∨> isDigit)
 
@@ -137,15 +136,11 @@ codeParser :: Parser CodeBlock
 codeParser = CodeBlob <$> sepBy1 (instrParser <* option empty afterCodeComment)
                                  (wspaces' >> newlines)
 
-
 -- parses local labels or code blobs separated by newlines or comment lines
 -- up to eof!
 parseCodeBlocks :: Parser [CodeBlock]
-parseCodeBlocks =  (sepBy1 (
-                       localLabelParser <|>
-                       codeParser) (many1 (
-                       void lineComment <|>
-                                    newlines)))
+parseCodeBlocks =  (sepBy1 (localLabelParser <|> codeParser)
+                    (many1 (void lineComment <|> newlines)))
 
 parseCode :: ByteString → Result [CodeBlock]
 parseCode s = feed (parse (parseCodeBlocks <* (skipSpace >> endOfInput)) s) empty

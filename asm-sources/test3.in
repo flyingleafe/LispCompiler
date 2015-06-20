@@ -1,0 +1,74 @@
+        mov     r8, rdi
+
+        ;; ecx -- number of trailing zeroes removed
+        xor     rcx, rcx
+        xor     rax, rax
+
+        ;; loop for removing trailing zeroes
+        mov     r9, [r8+bigintdata]       ; data
+        .loop
+        mov     eax, dword[r8+bigintsize] ; current size
+        cmp     eax, 1
+        jle     .reallocate                ; proceed if size ≤ 1
+        dec     eax                        ; indexing from 0
+        cmp     qword[r9+8*rax], 0         ; return if last portion of data non-null
+        jne     .reallocate
+        dec     dword[r8+bigint.size]
+        inc     ecx
+        jmp     .loop
+
+        ;; check if any trailing zeroes were removed
+        .reallocate
+        cmp     ecx, 0
+        jle     .nullcheck
+
+        ;; allocate array of new size
+        push    r8
+        push    r9
+        mov     edi, dword[r8+bigint.size]
+        shl     edi, 3
+        sub     rsp, 8          ; align
+        call    malloc
+        add     rsp, 8
+        pop     r9
+        pop     r8
+        mov     r10, rax
+
+        ;; copy old data to new array
+        xor     ecx, ecx
+        .loop_copy
+        mov     rdi, [r9+8*rcx]
+        mov     [r10+8*rcx], rdi
+        inc     ecx
+        cmp     ecx, dword[r8+bigint.size]
+        jl      .loop_copy
+
+        ;; free current array, mov new array address into structure
+        push    r8
+        push    r10
+        mov     rdi, [r8+bigint.data]
+        sub     rsp, 8
+        call    free
+        add     rsp, 8
+        pop     r10
+        pop     r8
+        mov     [r8+bigint.data], r10
+        jmp     .nullcheck
+        .free
+        mov     dword[r8+bigint.sign], 0
+        mov     rdi, r9
+        push    r8
+        call    free
+        pop     r8
+
+        ;; set sign 0 if zero
+        .nullcheck
+        cmp     dword[r8+bigint.size], 1
+        jg      .return
+        mov     r9, qword[r8+bigint.data]
+        cmp     qword[r9], 0
+        jne     .return
+        mov     dword[r8+bigint.sign], 0
+
+        .return
+        ret
