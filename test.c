@@ -4,7 +4,7 @@ int foo();
 
 int main() 
 {
-    if(7 == foo()) {
+    if(5 == foo()) {
         printf("ok\n");
     } else {
         printf("fail\n");

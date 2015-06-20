@@ -22,7 +22,7 @@ sexp = constexpr <|> var <|>
 
 identifier :: Parser Identifier
 identifier = do
-  let okChar c = isAlpha_ascii c ∨ inClass "-_/+*'" c
+  let okChar c = isAlpha_ascii c ∨ inClass "-~_/%+*'" c
   token ← lexeme $ takeWhile1 okChar
   return $ BS.unpack token
 

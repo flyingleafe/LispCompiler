@@ -28,11 +28,18 @@ data CodeBlock = LocalLabel Label | CodeBlob [Instruction]
 data Instruction = Add String String
                  | Sub String String
                  | Cmp String String
+                 | Test String String
                  | Mov String String
+                 | Not String
+                 | Neg String
                  | Xor String String
                  | And String String
                  | Or String String
+                 | Shr String String
+                 | Shl String String
                  | Lea String String
+                 | Inc String
+                 | Dec String
                  | Div String
                  | Mul String
                  | Push String
@@ -86,17 +93,24 @@ instance Show Instruction where
   show (Add a b)    = shargs2 "add" a b
   show (Sub a b)    = shargs2 "sub" a b
   show (Cmp a b)    = shargs2 "cmp" a b
+  show (Test a b)   = shargs2 "test" a b
   show (Mov a b)    = shargs2 "mov" a b
+  show (Not a)      = shargs1 "not" a
+  show (Neg a)      = shargs1 "neg" a
   show (Xor a b)    = shargs2 "xor" a b
   show (And a b)    = shargs2 "and" a b
   show (Or a b)     = shargs2 "or" a b
+  show (Shl a b)    = shargs2 "shl" a b
+  show (Shr a b)    = shargs2 "shr" a b
   show (Lea a b)    = shargs2 "lea" a b
+  show (Inc a)      = shargs1 "inc" a
+  show (Dec a)      = shargs1 "dec" a
   show (Div a)      = shargs1 "div" a
   show (Mul a)      = shargs1 "mul" a
   show (Push a)     = shargs1 "push" a
   show (Pop a)      = shargs1 "pop" a
   show (Jump l)     = shargs1 "jmp" l
-  show (Jcc c l)    = shargs1 c l
+  show (Jcc c l)    = shargs1 ("j" ++ c) l
   show (Call l)     = shargs1 "call" l
   show (Ret)        = "ret"
 

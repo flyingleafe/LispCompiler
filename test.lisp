@@ -1,1 +1,2 @@
-(define foo (lambda () (+ (* 2 3) (- 5 4))))
+(define foo (lambda ()
+              (if (% 4 2) (+ 10 5) (- 10 5))))
