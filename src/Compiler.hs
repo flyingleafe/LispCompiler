@@ -41,7 +41,6 @@ data CompilerState = CS { flags :: [Flag]
                         , functions :: [(Name, Function)]
                         , labels :: [Label]
                         , locals :: [Name]
-                        , currentFrameSize :: Int
                         }
 
 {--
@@ -157,14 +156,10 @@ compileFunction foo = do
   return $ CodeFunction (flabel foo) code'
 
 initStackFrame :: Function → Compiler ()
-initStackFrame foo = do
-  forM_ (fargs foo) addLocalVar
-  modify $ \cs → cs { currentFrameSize = frameSize foo }
+initStackFrame foo = forM_ (fargs foo) addLocalVar
 
 resetStackFrame :: Function → Compiler ()
-resetStackFrame foo = do
-  forM_ (fargs foo) removeLocalVar
-  modify $ \cs → cs { currentFrameSize = 0 }
+resetStackFrame foo = forM_ (fargs foo) removeLocalVar
 
 argsOrder :: [String]
 argsOrder = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]

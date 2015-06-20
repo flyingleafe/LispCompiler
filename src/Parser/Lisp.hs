@@ -1,6 +1,6 @@
 {-# LANGUAGE UnicodeSyntax, OverloadedStrings, NoImplicitPrelude #-}
 
-module Parser where
+module Parser.Lisp where
 
 import Prelude hiding (takeWhile)
 import Prelude.Unicode

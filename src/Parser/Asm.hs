@@ -1,9 +1,8 @@
 {-# LANGUAGE UnicodeSyntax, NoImplicitPrelude #-}
 
-module AssemblerParser
-       (parseCode,
-        getSourceFromFile)
-       where
+module Parser.Asm ( parseCode
+                  , getSourceFromFile
+                  ) where
 
 import Prelude
 import Assembler
