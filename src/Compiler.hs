@@ -74,7 +74,7 @@ compileM prog = do
   else do
     let mainBody = filter (not ∘ isFunDefinition) prog
     main ← compileBody $ Progn mainBody
-    let mainFun = CodeFunction "main" main
+    let mainFun = CodeFunction "main" (main ⊕ [CodeBlob [Ret]])
     return $ addFunction mainFun $ addGlobalLabel "main" code
 
 isFunDefinition :: SExp → Bool
