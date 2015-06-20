@@ -31,13 +31,14 @@ data Builtin = Extern { name :: String, argn :: Int, label :: Label }
 builtinName :: String → Bool
 builtinName nm = any (\b → name b ≡ nm) builtins
 
-getBuiltin :: String → Maybe Builtin
-getBuiltin nm = find (\b → name b ≡ nm) builtins
+getBuiltin :: String → Int → Maybe Builtin
+getBuiltin nm n = find (\b → name b ≡ nm ∧ argn b ≡ n) builtins
 
 builtins :: [Builtin]
 builtins = [ Inline "not" 1 not'
            , Inline "~" 1 btw_not
-           , Inline "neg" 1 neg
+           , Inline "-" 1 neg
+           , Inline "=" 2 equal
            , Inline "+" 2 plus
            , Inline "-" 2 minus
            , Inline "*" 2 mul
@@ -45,12 +46,17 @@ builtins = [ Inline "not" 1 not'
            , Inline "%" 2 mod'
            ]
 
-not', btw_not, neg, plus, minus, mul, div', mod' :: [[CodeBlock]] → [CodeBlock]
+not', btw_not, neg, equal, plus, minus, mul, div', mod' :: [[CodeBlock]] → [CodeBlock]
 not' [a] = a ⊕ [CodeBlob [Shr "rax" "1", Dec "rax", Shr "rax" "63"]]
 
 btw_not [a] = a ⊕ [CodeBlob [Not "rax"]]
 
 neg [a] = a ⊕ [CodeBlob [Neg "rax"]]
+
+equal [a, b] = not' [a ⊕
+                     [CodeBlob [Push "rax"]] ⊕
+                     b ⊕
+                     [CodeBlob [Pop "rdx", Sub "rax" "rdx"]]]
 
 plus [a, b] = a ⊕
               [CodeBlob [Push "rax"]] ⊕

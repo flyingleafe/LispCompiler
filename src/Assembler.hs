@@ -42,12 +42,13 @@ data Instruction = Add String String
                  | Dec String
                  | Div String
                  | Mul String
-                 | Neg String
                  | Push String
                  | Pop String
                  | Jump Label
                  | Jcc String Label
                  | Call Label
+                 | Enter String String
+                 | Leave String
                  | Ret
 
 addFunction :: CodeFunction → Assembler → Assembler
@@ -115,7 +116,6 @@ instance Show Instruction where
   show (Dec a)      = shargs1 "dec" a
   show (Div a)      = shargs1 "div" a
   show (Mul a)      = shargs1 "mul" a
-  show (Neg a)      = shargs1 "neg" a
   show (Push a)     = shargs1 "push" a
   show (Pop a)      = shargs1 "pop" a
   show (Jump l)     = shargs1 "jmp" l
