@@ -7,7 +7,7 @@ import System.Directory
 import Control.Applicative ((<$>))
 import qualified Data.ByteString.Char8 as BS
 
-import Parser
+import Parser.Lisp
 import Compiler
 import Settings
 import Assembler

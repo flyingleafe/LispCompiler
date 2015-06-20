@@ -4,7 +4,7 @@ module Main where
 import System.Directory
 
 import Assembler
-import AssemblerParser
+import Parser.Asm
 
 -- Testing source loading
 main :: IO ()
