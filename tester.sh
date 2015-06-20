@@ -1,13 +1,14 @@
 #!/bin/sh
 
-cabal build
-sources=$(find lisp-sources -iname "test*.in")
+cabal build compiler
+mkdir tmp
+sources=$(find lisp-sources -iname "test*.lisp" | sort -h)
 for inputsource in $sources
 do
     echo "processing "$inputsource
-    prefix=${inputsource:0:$((${#inputsource}-3))}
+    prefix=${inputsource:0:$((${#inputsource}-5))}
     rightoutput=$prefix".out"
-    echo "rightoutput: "$rightoutput
+#    echo "rightoutput: "$rightoutput
     [ ! -f "$rightoutput" ] && echo "No output test pattern for this executable"
     ./dist/build/compiler/compiler -o tmp/test.yasm $inputsource
     yasm -felf64 -gdwarf2 -Werror -o tmp/test.o tmp/test.yasm
@@ -22,7 +23,7 @@ do
         rm tmp/*
     else
         echo "[FALIED] for "$inputsource
-        echo "Mask: "$c1" "$c2" "$c3
+        echo "Error mask (return codes for compiler:yasm:gcc): "$c1" "$c2" "$c3
         exit
     fi
     echo

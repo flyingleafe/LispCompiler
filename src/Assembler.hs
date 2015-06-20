@@ -42,6 +42,7 @@ data Instruction = Add String String
                  | Dec String
                  | Div String
                  | Mul String
+                 | Neg String
                  | Push String
                  | Pop String
                  | Jump Label
@@ -65,15 +66,22 @@ instance Monoid [CodeBlock] where
 
 --- SHOW PART
 
-tabbed, bigtabbed :: String → String
-tabbed = (++) "    "
-bigtabbed = (++) "        "
+commandToArgsMargin :: Int
+commandToArgsMargin = 8
+
+tabbed :: Int → String → String
+tabbed n _ | n < 0 = ""
+tabbed n s         = ((iterate (++" ") "") !! n) ++ s
+
+bigtabbed :: String → String
+bigtabbed = tabbed 8
 
 shargs1 :: String → String → String
-shargs1 s a = s ++ " " ++ tabbed a
+shargs1 s a = s ++ " " ++ tabbed (commandToArgsMargin - length s) a
 
 shargs2 :: String → String → String → String
-shargs2 s a b = s ++ " " ++ tabbed (a ++ ", " ++ b)
+shargs2 s a b = s ++ " " ++ tabbed (commandToArgsMargin - length s)
+                (a ++ ", " ++ b)
 
 instance Show DataLabel where
   show (DataLabelS l s) = l ++ ":  db '" ++ s ++ "', 0"
@@ -107,6 +115,7 @@ instance Show Instruction where
   show (Dec a)      = shargs1 "dec" a
   show (Div a)      = shargs1 "div" a
   show (Mul a)      = shargs1 "mul" a
+  show (Neg a)      = shargs1 "neg" a
   show (Push a)     = shargs1 "push" a
   show (Pop a)      = shargs1 "pop" a
   show (Jump l)     = shargs1 "jmp" l
@@ -213,6 +222,7 @@ instrParser = instrParserG2 Add "add"
               <|> instrParserG2 Lea "lea"
               <|> instrParserG1 Div "div"
               <|> instrParserG1 Mul "mul"
+              <|> instrParserG1 Neg "neg"
               <|> instrParserG1 Push "push"
               <|> instrParserG1 Pop "pop"
               <|> instrParserG1G Call parseLabel (string "call")
