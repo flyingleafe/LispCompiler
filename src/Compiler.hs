@@ -155,7 +155,10 @@ compileBody (List ((Var f):args)) =
       Nothing → fail ("unsupported non-builtin: " ++ show f
                       ++ " with number of args: " ++ (show $ length args))
       Just b → body b <$> mapM compileBody args
-compileBody _ = (⊥)
+
+compileBody (List ((Const n):_)) = fail $ "'" ++ show n ++"' is not a function."
+
+compileBody _ = fail "unsupported language"
 
 {--
   Performs scope analysis and scope tables building
