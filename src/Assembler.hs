@@ -123,7 +123,7 @@ instance Show Instruction where
   show (Push a)     = shargs1 "push" a
   show (Pop a)      = shargs1 "pop" a
   show (Jump l)     = shargs1 "jmp" l
-  show (Jcc c l)    = shargs1 ("j" ++ c) l
+  show (Jcc c l)    = shargs1 c l
   show (Call l)     = shargs1 "call" l
   show (Enter a b)  = shargs2 "enter" a b
   show Leave        = "leave"

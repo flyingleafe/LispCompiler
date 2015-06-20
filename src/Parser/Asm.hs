@@ -1,93 +1,97 @@
-{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude #-}
+{-# LANGUAGE UnicodeSyntax, NoImplicitPrelude, OverloadedStrings #-}
 
-module Parser.Asm ( parseCode
-                  , getSourceFromFile
-                  ) where
+module Parser.Asm
+      -- ( parseCode
+      --            , getSourceFromFile
+      --            )
+       where
 
-import Prelude
+import Prelude hiding (takeWhile, concat)
+import Prelude.Unicode
 import Assembler
 import Control.Monad
-import System.IO
-import Text.ParserCombinators.Parsec
-import Control.DeepSeq (rnf)
-import Control.Applicative((<$>), (<*), (*>), (<$))
+import Data.Char (isLower)
+import Data.Attoparsec.ByteString.Char8
+import Data.ByteString.Char8 hiding (takeWhile, map)
+import Control.Applicative((<|>), (<$>), (<*), (*>), (<$))
 
--- parses whitespaces and newlines, ≥0 or >0
-wspaces, wspaces', newlines, newlines' :: Parser String
-wspaces = many1 $ char ' '
-wspaces' = many $ char ' '
-newlines = many1 newline
-newlines' = many newline
+(<∨>) :: (s → Bool) → (s → Bool) → s → Bool
+(<∨>) a b c = a c ∨ b c
+
+newline :: Parser Char
+newline = char '\n'
+
+wspaces, wspaces', newlines, newlines' :: Parser ()
+wspaces   = void $ many1 $ char ' '
+wspaces'  = void $ many' $ char ' '
+newlines  = void $ many1 newline
+newlines' = void $ many' newline
 
 lexeme, parens :: Parser a → Parser a
 lexeme s = try $ wspaces' >> s
-parens = try . between (char '[') (char ']')
+parens s = (char '[') *> s <* (char ']')
 
 -- lineComment parses one distinct comment line with \n on the end
 -- lineComments parses ≥0 lineComments with optional \n on the end
 -- afterCodeComment parses spaces, ";" and everything after it except \n
-lineComment, lineComments, afterCodeComment :: Parser String
-lineComment = lexeme (try (string ";;;") <|> string (";;")) >> many (noneOf ("\n"))
-afterCodeComment = lexeme (string ";" *> many (noneOf "\n"))
-lineComments = concat <$> many (lineComment <* newlines')
+lineComment, afterCodeComment :: Parser ByteString
+lineComment = lexeme ((string ";;;") <|> string (";;")) *> takeWhile (notInClass "\n")
+afterCodeComment = lexeme (string ";" *> takeWhile (notInClass "\n"))
+--lineComments = concat <$> sepBy lineComment newlines'
 
 -- parses square brackets and adds them to return value
-parens' :: Parser String → Parser String
+parens' :: Parser ByteString → Parser ByteString
 parens' m = do
-  l ← try $ string "["
+  l ← string "["
   middle ← m
-  r ← try $ string "]"
-  return $ l ++ middle ++ r
+  r ← string "]"
+  return $ l `append` middle `append` r
 
 -- parseLabel parses labels like "label_cool1"
 -- anyLabel parses parseLabel optionally starting at '.'
-parseLabel, anyLabel :: Parser String
-parseLabel = try $ many1 $ letter <|> digit <|> (char '_')
-anyLabel = liftM2 (++) (option "" (string ".")) parseLabel
-
--- codeParses parse >0 lines of code, skipping after-code comments
-codeParser :: Parser CodeBlock
-codeParser = CodeBlob <$> (sepEndBy1 (try instrParser <* optional afterCodeComment)
-                           (try (wspaces' >> newlines)))
+parseLabel, anyLabel :: Parser ByteString
+parseLabel = takeWhile1 $ isAlpha_ascii <∨> isDigit <∨> (≡ '_')
+anyLabel = liftM2 append (option "" (string ".")) parseLabel
 
 -- localLabelParser parses local label line, skipping \n's after it
 localLabelParser :: Parser CodeBlock
-localLabelParser = LocalLabel <$> (try (wspaces >> char '.') >> parseLabel
-                                   <* (optional $ void newlines))
+localLabelParser = LocalLabel <$> unpack <$> ((wspaces' >> char '.') >> parseLabel)
+
 -- arg parses argument of command -- register (or like-register), label in
 -- brackets or arithmetic operation in brackets like [2*rsi+6].
-arg :: Parser String
-arg = liftM2 (++) (option "" $ choice [try $ string "byte",
-                                       try $ string "word",
-                                       try $ string "dword",
-                                       string "qword"] <* wspaces)
-      (try (parens' $ many (lower <|> digit <|> (oneOf "+*- "))) <|>
-       (parens' parseLabel))
+arg :: Parser ByteString
+arg = liftM2 append ((option empty $ choice [string "byte",
+                                          string "word",
+                                          string "dword",
+                                          string "qword"]) <* wspaces')
+      ((parens' parseLabel) <|>
+        (parens' $ takeWhile (isLower <∨> isDigit <∨> (inClass "+*-") <∨> (≡ ' '))))
       <|>
-      many (try lower <|> try digit)
+      takeWhile1 (isLower <∨> isDigit)
 
-instrParserG2 :: (String → String → Instruction) → String → Parser Instruction
+instrParserG2 :: (String → String → Instruction) → ByteString → Parser Instruction
 instrParserG2 constr s = do
-  try $ lexeme $ try $ string s
-  spaces
+  lexeme $ string s
+  wspaces
   s1 ← lexeme arg
   char ','
-  spaces
+  wspaces
   s2 ← lexeme arg
-  return $ constr s1 s2
+  return $ constr (unpack s1) (unpack s2)
 
-instrParserG1G :: (String → Instruction) → Parser String → Parser String → Parser Instruction
+instrParserG1G :: (String → Instruction) → Parser ByteString →
+                  Parser ByteString → Parser Instruction
 instrParserG1G constr p str = do
-  try $ lexeme $ try $ str
-  spaces
+  lexeme $ str
+  wspaces
   s1 ← lexeme p
-  return $ constr s1
+  return $ constr $ unpack s1
 
-instrParserG1 :: (String → Instruction) → String → Parser Instruction
+instrParserG1 :: (String → Instruction) → ByteString → Parser Instruction
 instrParserG1 constr s = instrParserG1G constr arg $ string s
 
-instrSingle :: Instruction → String → Parser Instruction
-instrSingle constr s = try (constr <$ (wspaces' *> (string s) <* wspaces'))
+instrSingle :: Instruction → ByteString → Parser Instruction
+instrSingle constr s = constr <$ (wspaces' *> (string s) <* wspaces')
 
 -- instrParses parses exactly one instruction with it's arguments
 instrParser :: Parser Instruction
@@ -95,6 +99,7 @@ instrParser = instrParserG2 Add "add"
               <|> instrParserG2 Sub "sub"
               <|> instrParserG2 Cmp "cmp"
               <|> instrParserG2 Mov "mov"
+              <|> instrParserG2 Test "test"
               <|> instrParserG2 Xor "xor"
               <|> instrParserG2 And "and"
               <|> instrParserG2 Or  "or"
@@ -107,7 +112,7 @@ instrParser = instrParserG2 Add "add"
               <|> instrParserG1 Pop "pop"
               <|> instrParserG1G Call parseLabel (string "call")
               <|> instrParserG1G Jump anyLabel (string "jmp")
-              <|> try (do s1 ← try (lexeme (choice $ map (try . string)
+              <|> try (do s1 ← try (lexeme (choice $ map string
                                         ["jae", "ja", "jbe", "jb", "jcxz",
                                          "jc", "jecxz", "je", "jrcxz",
                                          "jnae", "jna", "jnbe", "jnb",
@@ -118,36 +123,24 @@ instrParser = instrParserG2 Add "add"
                                          "js", "jz" ]))
                           wspaces
                           s2 ← anyLabel
-                          return $ Jcc s1 s2)
+                          return $ Jcc (unpack s1) (unpack s2))
               <|> instrSingle Leave "leave"
               <|> instrSingle Ret "ret"
+
+-- codeParses parse >0 lines of code, skipping after-code comments
+codeParser :: Parser CodeBlock
+codeParser = CodeBlob <$> sepBy1 (instrParser <* option empty afterCodeComment)
+                                 (wspaces' >> newlines)
+
 
 -- parses local labels or code blobs separated by newlines or comment lines
 -- up to eof!
 parseCodeBlocks :: Parser [CodeBlock]
-parseCodeBlocks = (sepEndBy1 (codeParser <|> try localLabelParser )
-                   (lineComments <|> newlines'))
-                  <* eof
+parseCodeBlocks =  (sepBy1 (
+                       localLabelParser <|>
+                       codeParser) (many1 (
+                       void lineComment <|>
+                                    newlines)))
 
--- helper
-parsem :: Parser a → String → Either ParseError a
-parsem b str = parse b "oops" str
-
--- these two are for getting code from templates
--- they parse the same grammar, one is just wrapping another
-
---parseTextSec :: String → Either ParseError Section
---parseTextSec = parse (TextSec <$> [] <$> CodeFunction "foo" <$> parseCodeBlocks) "oops :("
-
-parseCode :: String → Either ParseError [CodeBlock]
-parseCode = parse parseCodeBlocks "oops :("
-
---- PARSER END
-
-getSourceFromFile :: String → IO (Either ParseError [CodeBlock])
-getSourceFromFile filename = do
-  input ← openFile filename ReadMode
-  s ← hGetContents $! input
-  -- that's needed to prevent file being closed before parser gets lazy string
-  rnf s `seq` hClose input
-  return $ parseCode s
+parseCode :: ByteString → Result [CodeBlock]
+parseCode s = feed (parse (parseCodeBlocks <* (skipSpace >> endOfInput)) s) empty

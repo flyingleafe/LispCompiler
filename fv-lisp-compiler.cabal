@@ -18,9 +18,7 @@ executable compiler
   -- other-modules:
   -- other-extensions:
   build-depends:       attoparsec >= 0.10
-                     , deepseq
                      , directory
-                     , parsec
                      , text
                      , base >= 4.6
                      , base-unicode-symbols >= 0.2
@@ -35,9 +33,6 @@ executable asm-tester
   -- other-modules:
   -- other-extensions:
   build-depends:       attoparsec >= 0.10
-                     , deepseq
-                     , directory
-                     , parsec
                      , text
                      , base >= 4.6
                      , base-unicode-symbols >= 0.2

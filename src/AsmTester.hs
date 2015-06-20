@@ -1,18 +1,24 @@
 {-# LANGUAGE UnicodeSyntax #-}
 module Main where
 
-import System.Directory
-
-import Assembler
 import Parser.Asm
+import System.IO
+import System.Environment
+import qualified Data.ByteString.Char8 as BS
+
+
+processIO :: (Handle → Handle → IO()) → IO()
+processIO handling = do
+  (arg1:arg2:_) ← getArgs
+  input ← openFile arg1 ReadMode
+  output ← openFile arg2 WriteMode
+  handling input output
+  hClose input
+  hClose output
+
 
 -- Testing source loading
 main :: IO ()
-main = do
-  dc ← getCurrentDirectory
-  putStrLn $ "current dir is " ++ dc
-  test2 ← getSourceFromFile "./asm-sources/test2.in"
-  putStrLn $
-    case test2 of
-     Right res → show res
-     Left err  → show err
+main = processIO $ \input output → do
+  file ← BS.hGetContents input
+  putStrLn $ show $ parseCode file
