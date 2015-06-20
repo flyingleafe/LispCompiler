@@ -47,6 +47,8 @@ data Instruction = Add String String
                  | Jump Label
                  | Jcc String Label
                  | Call Label
+                 | Enter String String
+                 | Leave String
                  | Ret
 
 addFunction :: CodeFunction → Assembler → Assembler

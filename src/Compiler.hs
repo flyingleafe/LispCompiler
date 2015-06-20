@@ -60,6 +60,7 @@ compile flags prog = evalStateT (compileM prog) (CS flags [] [] [] 0)
 --}
 compileM :: Program → Compiler Assembler
 compileM prog = do
+
   buildScopeTables prog
 
   defines ← gets $ map snd ∘ functions

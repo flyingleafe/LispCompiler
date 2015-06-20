@@ -36,6 +36,7 @@ builtins = [ Inline "not" 1 not'
            , Inline "neg" 1 neg
            , Inline "+"   1 nop
            , Inline "-"   1 neg
+           , Inline "="   2 equal
            , Inline "+"   2 plus
            , Inline "-"   2 minus
            , Inline "*"   2 mul
@@ -43,8 +44,8 @@ builtins = [ Inline "not" 1 not'
            , Inline "%"   2 mod'
            ]
 
-not', btw_not, neg, plus, minus,
-  nop, mul, div', mod' :: [[CodeBlock]] → [CodeBlock]
+not', btw_not, neg, equal, plus, minus,
+  mul, div', mod', nop :: [[CodeBlock]] → [CodeBlock]
 
 not' [a] = a ⊕ [CodeBlob [Shr "rax" "1", Dec "rax", Shr "rax" "63"]]
 
@@ -53,6 +54,11 @@ btw_not [a] = a ⊕ [CodeBlob [Not "rax"]]
 neg [a] = a ⊕ [CodeBlob [Neg "rax"]]
 
 nop [a] = a ⊕ [CodeBlob []]
+
+equal [a, b] = not' [a ⊕
+                     [CodeBlob [Push "rax"]] ⊕
+                     b ⊕
+                     [CodeBlob [Pop "rdx", Sub "rax" "rdx"]]]
 
 plus [a, b] = a ⊕
               [CodeBlob [Push "rax"]] ⊕
