@@ -10,5 +10,5 @@ extern "C" {
 int main() {
     int res = foo();
     if (res != 5) return 1;
-    return 228;
+    return 0;
 }
