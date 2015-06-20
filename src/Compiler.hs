@@ -9,6 +9,7 @@ import Assembler
 import SExp
 import Builtins
 import Data.List
+import Data.Monoid
 import Data.Monoid.Unicode
 import Data.Maybe
 import Control.Monad.State
