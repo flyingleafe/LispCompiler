@@ -110,11 +110,10 @@ compileBody (Define _ _) = fail "Defines are not allowed in the body"
 compileBody (Progn ss) = concat <$> mapM compileBody ss
 compileBody (Const n) = return [CodeBlob [Mov "rax" (show n)]]
 compileBody (List ((Var f):args)) =
-    case getBuiltin f of
-      Nothing → fail "unsupported non-builtin"
-      Just b → if length args ≢ argn b
-               then fail "wrong number of args"
-               else body b <$> mapM compileBody args
+    case getBuiltin f $ length args of
+      Nothing → fail ("unsupported non-builtin: " ++ show f
+                      ++ " with number of args: " ++ (show $ length args))
+      Just b → body b <$> mapM compileBody args
 compileBody _ = (⊥)
 
 {--

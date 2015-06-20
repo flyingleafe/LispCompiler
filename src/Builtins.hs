@@ -25,23 +25,32 @@ import Data.List
   its args' bodies
 --}
 data Builtin = Extern { name :: String, argn :: Int, label :: Label }
-             | Inline { name :: String, argn :: Int, body :: [[CodeBlock]] → [CodeBlock] }
+             | Inline { name :: String, argn :: Int, dependencies:: [Builtin],
+                        body :: [[CodeBlock]] → [CodeBlock] }
 
 -- True if name is reserved for builtin
 builtinName :: String → Bool
 builtinName nm = any (\b → name b ≡ nm) builtins
 
+{--
+  Added the same method with number of arguments support for function overloading
 getBuiltin :: String → Maybe Builtin
 getBuiltin nm = find (\b → name b ≡ nm) builtins
+--}
+
+getBuiltin :: String → Int → Maybe Builtin
+getBuiltin nm n = find (\b → name b ≡ nm ∧ argn b ≡ n) builtins
 
 builtins :: [Builtin]
-builtins = [ Inline "+" 2 plus
-           , Inline "-" 2 minus
-           , Inline "*" 2 mul
+builtins = [ Inline "+" 2 [] plus
+           , Inline "-" 2 [] minus
+           , Inline "*" 2 [] mul
+           , Inline "+" 1 [] uplus
+           , Inline "-" 1 [] uminus
            -- , Inline "/" 2 div
            ]
 
-plus, minus, mul :: [[CodeBlock]] → [CodeBlock]
+plus, minus, mul, uplus, uminus :: [[CodeBlock]] → [CodeBlock]
 plus [a, b] = a ⊕
               [CodeBlob [Push "rax"]] ⊕
               b ⊕
@@ -59,3 +68,8 @@ mul [a, b] = a ⊕
 
 -- div [a, b] = a ++
              -- [CodeBlob [Push "rdx"]]
+
+uplus [a] = a
+
+uminus [a] = a ⊕
+             [CodeBlob [Neg "rax"]]
