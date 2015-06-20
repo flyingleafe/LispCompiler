@@ -8,6 +8,7 @@ import Settings
 import Assembler
 import SExp
 import Builtins
+import Data.Monoid.Unicode
 import Control.Monad.State
 import Control.Applicative hiding (Const)
 import qualified Data.ByteString.Char8 as BS
@@ -71,7 +72,7 @@ compileM prog = do
   else do
     let mainBody = filter (not ∘ isFunDefinition) prog
     main ← compileBody $ Progn mainBody
-    let mainFun = CodeFunction "main" main
+    let mainFun = CodeFunction "main" (main ⊕ [CodeBlob [Ret]])
     return $ addFunction mainFun $ addGlobalLabel "main" code
 
 isFunDefinition :: SExp → Bool

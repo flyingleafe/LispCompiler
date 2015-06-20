@@ -72,4 +72,8 @@ mul [a, b] = a ⊕
 uplus [a] = a
 
 uminus [a] = a ⊕
-             [CodeBlob [Neg "rax"]]
+--             [CodeBlob [
+--                 Mov "rdx" "rax",
+--                 Xor "rax" "rax",
+--                 Sub "rax" "rdx"]]
+             [CodeBlob [ Neg "rax" ]]
