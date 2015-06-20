@@ -11,7 +11,6 @@ import Builtins
 import Data.Monoid.Unicode
 import Control.Monad.State
 import Control.Applicative hiding (Const)
-import qualified Data.ByteString.Char8 as BS
 
 type Error = String
 type Name = String
@@ -38,7 +37,7 @@ data Function = Function { fname  :: Name
 data CompilerState = CS { flags :: [Flag]
                         , functions :: [(Name, Function)]
                         , labels :: [Label]
-                        , locals :: [(Name, SExp)]
+                        , locals :: [Name]
                         , currentFrameSize :: Int
                         }
 
@@ -121,6 +120,9 @@ newLocalLabel = do
   modify $ \cs → cs { labels = newl : labels cs }
   return newl
 
+addLocalVar :: Name → Compiler ()
+addLocalVar v = modify $ \cs → cs { locals = v : locals cs }
+
 {--
   Translates `Function` to `CodeFunction`
   Compiles function body and make it suitable assembler function body
@@ -129,6 +131,11 @@ compileFunction :: Function → Compiler CodeFunction
 compileFunction foo = do
   code ← compileBody $ fbody foo
   return $ CodeFunction (flabel foo) $ code ⊕ [CodeBlob [Ret]]
+
+moveArguments :: [Name] → [CodeBlock]
+moveArguments = movArgs 0
+    where movArgs _ [] = []
+          movArgs 0 (v:vs) = [CodeBlob [Mov "[ebp - 1]" "rdi"]]
 
 {--
   A function which should compile `SExp` into assembler code.
