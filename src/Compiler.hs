@@ -210,7 +210,7 @@ compileBody (Cond i t e) = do
   elseL ← newLocalLabel
   finL ← newLocalLabel
   return $ ib ⊕
-         [CodeBlob [Test "rax" "rax", Jcc "e" ("." ++ elseL)]] ⊕
+         [CodeBlob [Test "rax" "rax", Jcc "je" ("." ++ elseL)]] ⊕
          tb ⊕
          [CodeBlob [Jump ("." ++ finL)], LocalLabel elseL] ⊕
          eb ⊕
