@@ -161,15 +161,30 @@ initStackFrame foo = forM_ (fargs foo) addLocalVar
 resetStackFrame :: Function → Compiler ()
 resetStackFrame foo = forM_ (fargs foo) removeLocalVar
 
+
+{--
+  The following functions generate assembly code for reallocating
+  function arguments on stack.
+
+  This may seem very strange and unefficient, and that's indeed unefficient,
+  but this is done for 2 reasons:
+
+  1) Caring about spoiling the registers containing arguments is a headache
+  2) It's very convenient to treat passed arguments in the same way as local vars
+--}
 argsOrder :: [String]
-argsOrder = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
+argsOrder = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"] ++ revStack 2
+    where revStack n = ["[rbp + " ++ show (n ⋅ 8) ++ "]"] ++ revStack (n + 1)
 
 moveArguments :: [Name] → [CodeBlock]
 moveArguments = movArgs 0
     where movArgs _ [] = []
-          movArgs n (v:vs) = let dst = "[rbp - " ++ show ((n + 1)*8) ++ "]"
-                             in [CodeBlob [Mov dst (argsOrder !! n)]] ⊕
-                                movArgs (n + 1) vs
+          movArgs n (v:vs) =
+              let dst = "[rbp - " ++ show ((n + 1)*8) ++ "]"
+                  (src, preop) = if n < 6 then (argsOrder !! n, [])
+                                 else ("rax", [CodeBlob [Mov "rax" (argsOrder !! n)]])
+              in preop ⊕ [CodeBlob [Mov dst src]] ⊕
+                 movArgs (n + 1) vs
 
 {--
   A function which should compile `SExp` into assembler code.

@@ -1,4 +1,4 @@
-(define foo (lambda (a b)
+(define foo (lambda (a b c d e f g h)
               (let ((x (+ a 3))
                     (y (- b 2)))
-                (* x y))))
+                (* x (* h y)))))
