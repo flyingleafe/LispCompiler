@@ -92,6 +92,9 @@ labelUsed l = gets $ (l ∈) ∘ labels
 useLabel :: Label → Compiler ()
 useLabel l = modify $ \cs → cs { labels = l : labels cs }
 
+getFunction :: Name → Compiler (Maybe Function)
+getFunction nm = gets $ lookup nm ∘ functions
+
 {--
   Get function label with respect to settings:
   prepend it with `_` if flag is passed
@@ -186,6 +189,13 @@ moveArguments = movArgs 0
               in preop ⊕ [CodeBlob [Mov dst src]] ⊕
                  movArgs (n + 1) vs
 
+putArguments :: [[CodeBlock]] → [CodeBlock]
+putArguments args = putRegs (take 6 args) ⊕ putStack (drop 6 args)
+    where putRegs as = mconcat $ map putReg $ zip as argsOrder
+          putReg (ab, dst) = ab ⊕ [CodeBlob [Mov dst "rax"]]
+          putStack as = mconcat $ map putSt $ reverse as
+          putSt ab = ab ⊕ [CodeBlob [Push "rax"]]
+
 {--
   A function which should compile `SExp` into assembler code.
 --}
@@ -208,9 +218,14 @@ compileBody (Cond i t e) = do
 
 compileBody (List ((Var f):args)) =
     case getBuiltin f $ length args of
-      Nothing → fail ("unsupported non-builtin: " ++ show f
-                      ++ " with number of args: " ++ (show $ length args))
       Just b → body b <$> mapM compileBody args
+      Nothing → do
+        mfoo ← getFunction f
+        case mfoo of
+          Just foo → do
+                  as ← mapM compileBody args
+                  return $ putArguments as ⊕ [CodeBlob [Call $ flabel foo]]
+          Nothing → fail $ "Undefined function: " ++ f
 
 compileBody (List ((Const n):_)) = fail $ "'" ++ show n ++"' is not a function."
 compileBody (Let bnd e) = do
