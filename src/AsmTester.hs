@@ -21,4 +21,4 @@ processIO handling = do
 main :: IO ()
 main = processIO $ \input output → do
   file ← BS.hGetContents input
-  putStrLn $ show $ parseCode file
+  putStrLn $ show $ processAssembler file
