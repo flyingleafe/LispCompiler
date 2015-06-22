@@ -34,24 +34,40 @@ builtins :: [Builtin]
 builtins = [ Inline "not" 1 not'
            , Inline "~"   1 btw_not
            , Inline "neg" 1 neg
+           , Inline "and" 2 and'
+           , Inline "or"  2 or'
            , Inline "+"   1 nop
            , Inline "-"   1 neg
-           , Inline "="   2 equal
            , Inline "+"   2 plus
            , Inline "-"   2 minus
            , Inline "*"   2 mul
            , Inline "/"   2 div'
            , Inline "%"   2 mod'
+           , Inline "="   2 equal
+           , Inline "<"   2 less
+           , Inline "<="  2 leq
+           , Inline ">"   2 greater
+           , Inline ">="  2 geq
            ]
 
-not', btw_not, neg, equal, plus, minus,
-  mul, div', mod', nop :: [[CodeBlock]] → [CodeBlock]
+not', btw_not, neg, and', or', equal, plus, minus,
+  mul, div', mod', nop, less, leq, greater, geq :: [[CodeBlock]] → [CodeBlock]
 
 not' [a] = a ⊕ [CodeBlob [Shr "rax" "1", Dec "rax", Shr "rax" "63"]]
 
 btw_not [a] = a ⊕ [CodeBlob [Not "rax"]]
 
 neg [a] = a ⊕ [CodeBlob [Neg "rax"]]
+
+and' [a, b] = a ⊕
+             [CodeBlob [Push "rax"]] ⊕
+             b ⊕
+             [CodeBlob [Pop "rdx", And "rax" "rdx"]]
+
+or' [a, b] = a ⊕
+            [CodeBlob [Push "rax"]] ⊕
+            b ⊕
+            [CodeBlob [Pop "rdx", Or "rax" "rdx"]]
 
 nop [a] = a ⊕ [CodeBlob []]
 
@@ -81,3 +97,14 @@ div' [a, b] = b ⊕
              [CodeBlob [Pop "rcx", Xor "rdx" "rdx", Div "rcx"]]
 
 mod' [a, b] = div' [a, b] ⊕ [CodeBlob [Mov "rax" "rdx"]]
+
+less [a, b] = a ⊕
+              [CodeBlob [Push "rax"]] ⊕
+              b ⊕
+              [CodeBlob [Pop "rdx", Sub "rax" "rdx", Shr "rax" "64"]]
+
+greater [a, b] = less [b, a]
+
+geq [a, b] = not' [less [a, b]]
+
+leq [a, b] = not' [greater [a, b]]
