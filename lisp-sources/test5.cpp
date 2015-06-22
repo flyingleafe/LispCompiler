@@ -4,10 +4,14 @@ extern "C" {
     int factorial(int n);
 }
 
+int fact(int n) {
+    return n == 1 ? 1 : n * fact(n - 1);
+}
+
 int main()
 {
-    if (120 != factorial(5)) {
-        return 1;
+    for (int i = 1; i < 7; i++) {
+        if (fact(i) != factorial(i)) return i;
     }
     return 0;
 }
