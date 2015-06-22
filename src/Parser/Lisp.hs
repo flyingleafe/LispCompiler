@@ -14,7 +14,7 @@ lexeme p = p <* skipSpace
 parens p = lexeme (char '(') *> lexeme p <* lexeme (char ')')
 
 getSExps :: BS.ByteString → Either String [SExp]
-getSExps = parseOnly (many1 sexp)
+getSExps = parseOnly ((sepBy sexp (option () skipSpace)) <* (skipSpace *> endOfInput))
 
 sexp :: Parser SExp
 sexp = constexpr <|> var <|>
@@ -22,7 +22,7 @@ sexp = constexpr <|> var <|>
 
 identifier :: Parser Identifier
 identifier = do
-  let okChar c = isAlpha_ascii c ∨ inClass "-~_/%+*='<>" c
+  let okChar c = isAlpha_ascii c ∨ isDigit c ∨ inClass "-~_/%+*='<>" c
   token ← lexeme $ takeWhile1 okChar
   return $ BS.unpack token
 

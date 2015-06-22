@@ -101,7 +101,7 @@ mod' [a, b] = div' [a, b] ⊕ [CodeBlob [Mov "rax" "rdx"]]
 less [a, b] = a ⊕
               [CodeBlob [Push "rax"]] ⊕
               b ⊕
-              [CodeBlob [Pop "rdx", Sub "rax" "rdx", Shr "rax" "64"]]
+              [CodeBlob [Pop "rdx", Sub "rax" "rdx", Shr "rax" "63"]]
 
 greater [a, b] = less [b, a]
 

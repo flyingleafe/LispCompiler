@@ -35,6 +35,7 @@ main = processIO $ \inputs output flags →
        Left err → hPutStrLn output $ "Couldn't parse: " ++ err
        Right term → do
          libs ← loadLibs flags
+         putStrLn $ "number of expressions parsed: " ++ show (length term)
          case libs of
           Left err → hPutStrLn output $ "Couldn't load the library: " ++ err
           Right libs → do
