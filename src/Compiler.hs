@@ -4,16 +4,18 @@ module Compiler where
 
 import Prelude
 import Prelude.Unicode
-import Settings
-import Assembler
-import SExp
-import Builtins
 import Data.List
 import Data.Monoid
 import Data.Monoid.Unicode
 import Data.Maybe
 import Control.Monad.State
 import Control.Applicative hiding (Const)
+
+import Settings
+import Assembler
+import SExp
+import Builtins
+import LibLoader
 
 type Error = String
 type Name = String
@@ -64,11 +66,13 @@ compileM prog = do
 
   buildScopeTables prog
 
+  libs ← loadLibs <$> gets flags
+
   defines ← gets $ map snd ∘ functions
   funcs ← mapM compileFunction defines
 
   let flabels = map cflabel funcs
-      code = Assembler funcs [] [] [] flabels
+      code = libs ⊕ Assembler funcs [] [] [] flabels
 
   withoutMain ← flagSet WithoutMain
   if withoutMain

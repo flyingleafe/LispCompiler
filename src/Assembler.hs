@@ -5,6 +5,8 @@ module Assembler where
 import Prelude
 import Data.Text (strip, unpack, pack)
 import Data.Monoid
+import Data.Monoid.Unicode
+import Data.List (nub)
 
 type Label = String
 
@@ -15,8 +17,8 @@ data Assembler = Assembler
                  , externLabels :: [Label]
                  , globalLabels :: [Label]
                  }
-data DataLabel = DataLabel Label String
-data BssLabel = BssLabel Label Int
+data DataLabel = DataLabel Label String deriving Eq
+data BssLabel = BssLabel Label Int deriving Eq
 data CodeFunction = CodeFunction { cflabel :: Label, cfblocks :: [CodeBlock] }
 -- local labels are passed without '.' char at the start
 data CodeBlock = LocalLabel Label | CodeBlob [Instruction]
@@ -77,6 +79,15 @@ instance Monoid [CodeBlock] where
     mappend a b = case (last a, head b) of
                     (CodeBlob as, CodeBlob bs) → init a ++ (CodeBlob $ as ++ bs) : tail b
                     _ → a ++ b
+
+instance Monoid Assembler where
+  mempty = Assembler [] [] [] [] []
+  mappend (Assembler t1 d1 b1 e1 g1) (Assembler t2 d2 b2 e2 g2) =
+    Assembler (t1 ⊕ t2)
+    (nub $ d1 ++ d2)
+    (nub $ b1 ++ b2)
+    (nub $ e1 ++ e2)
+    (nub $ g1 ++ g2)
 
 --- SHOW PART
 

@@ -4,6 +4,7 @@ module LibLoader where
 
 import Settings
 import Assembler
+import Data.Monoid
 import Parser.Asm
 
 {--
@@ -12,4 +13,7 @@ import Parser.Asm
 --}
 
 loadLibs :: [Flag] → Assembler
-loadLibs = undefined
+loadLibs = mempty
+
+loadLibs' :: String → Assembler
+loadLibs' s = mempty
