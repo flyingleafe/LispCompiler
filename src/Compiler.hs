@@ -51,8 +51,9 @@ data CompilerState = CS { flags :: [Flag]
 --}
 type Compiler = StateT CompilerState (Either Error)
 
-compile :: [Flag] → Program → Either Error Assembler
-compile flags prog = evalStateT (compileM prog) (CS flags [] [] [])
+-- TODO use lib somehow
+compile :: [Flag] → Assembler → Program → Either Error Assembler
+compile flags libs prog = evalStateT (compileM prog) (CS flags [] [] [])
 
 {--
   Main compile function.
@@ -63,16 +64,16 @@ compile flags prog = evalStateT (compileM prog) (CS flags [] [] [])
 --}
 compileM :: Program → Compiler Assembler
 compileM prog = do
-
   buildScopeTables prog
-
-  libs ← loadLibs <$> gets flags
 
   defines ← gets $ map snd ∘ functions
   funcs ← mapM compileFunction defines
 
   let flabels = map cflabel funcs
-      code = libs ⊕ Assembler funcs [] [] [] flabels
+      code =
+        -- It could be added somehow like this
+        -- libs ⊕
+        Assembler funcs [] [] [] flabels
 
   withoutMain ← flagSet WithoutMain
   if withoutMain

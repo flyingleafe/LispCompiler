@@ -17,8 +17,8 @@ data Assembler = Assembler
                  , externLabels :: [Label]
                  , globalLabels :: [Label]
                  }
-data DataLabel = DataLabel Label String deriving Eq
-data BssLabel = BssLabel Label Int deriving Eq
+data DataLabel = DataLabel { datalabel :: String, descr :: String } deriving Eq
+data BssLabel = BssLabel { bsslabel :: String, n :: Int } deriving Eq
 data CodeFunction = CodeFunction { cflabel :: Label, cfblocks :: [CodeBlock] }
 -- local labels are passed without '.' char at the start
 data CodeBlock = LocalLabel Label | CodeBlob [Instruction]

@@ -238,5 +238,5 @@ parseAssembler = do
 parseCode :: ByteString → Result [CodeBlock]
 parseCode s = feed (parse (parseCodeBlocks <* (skipSpace >> endOfInput)) s) ""
 
-processAssembler :: ByteString → Result Assembler
-processAssembler s = feed (parse parseAssembler s) ""
+processAssembler :: ByteString → Either String Assembler
+processAssembler s = parseOnly parseAssembler s
