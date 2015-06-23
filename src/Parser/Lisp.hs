@@ -13,8 +13,12 @@ lexeme, parens :: Parser a → Parser a
 lexeme p = p <* skipSpace
 parens p = lexeme (char '(') *> lexeme p <* lexeme (char ')')
 
+omitComments :: BS.ByteString → BS.ByteString
+omitComments = BS.unlines ∘ map removeComment ∘ BS.lines
+    where removeComment = BS.takeWhile (≢ ';')
+
 getSExps :: BS.ByteString → Either String [SExp]
-getSExps = parseOnly ((sepBy sexp (option () skipSpace)) <* (skipSpace *> endOfInput))
+getSExps = parseOnly ((many1 $ skipSpace *> sexp) <* (skipSpace *> endOfInput)) ∘ omitComments
 
 sexp :: Parser SExp
 sexp = constexpr <|> var <|>

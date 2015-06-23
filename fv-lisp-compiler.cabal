@@ -20,7 +20,7 @@ executable compiler
   build-depends:       attoparsec >= 0.10
                      , directory
                      , text
-                     , base >= 4.6
+                     , base >= 4.7
                      , base-unicode-symbols >= 0.2
                      , bytestring >= 0.10
                      , mtl >= 2.1
