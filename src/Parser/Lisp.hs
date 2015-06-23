@@ -8,7 +8,9 @@ import Data.Monoid.Unicode
 import SExp
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Internal as BS (c2w)
 import Control.Applicative ((<$>), (<|>), (<*), (*>))
+import Data.Char (ord)
 
 lexeme, parens :: Parser a → Parser a
 lexeme p = p <* skipSpace
@@ -23,7 +25,7 @@ getSExps = parseOnly ((many1 $ skipSpace *> sexp) <* (skipSpace *> endOfInput)) 
 
 sexp :: Parser SExp
 sexp = constexpr <|> var <|>
-       parens (progn <|> quote <|> cond <|> define <|> letexpr <|> lambda <|> list)
+       parens (quote <|> cond <|> define <|> letexpr <|> lambda <|> list)
 
 builtinId :: Parser Identifier
 builtinId = BS.unpack <$> takeWhile1 (inClass "-~/%+*=<>")
@@ -39,26 +41,32 @@ identifier :: Parser Identifier
 identifier = lexeme $ builtinId <|> ordinaryId
 
 constexpr :: Parser SExp
-constexpr = do
-  num ← lexeme $ signed decimal
-  return $ Const num
+constexpr = lexeme $ constInt <|> constChar <|> constStr
+
+constChar, constInt, constStr :: Parser SExp
+constChar = do
+  string "#\\"
+  c ← anyChar
+  return $ SConst (ord c)
+
+constInt = SConst <$> signed decimal
+
+constStr = do
+  char '"'
+  chs ← many' $ satisfy $ not ∘ \c → isEndOfLine (BS.c2w c) ∨ c ≡ '"'
+  char '"'
+  return $ (SQuote ∘ SList ∘ map (SConst ∘ ord)) chs
 
 var :: Parser SExp
 var = do
   name ← identifier
-  return $ Var name
-
-progn :: Parser SExp
-progn = do
-  lexeme $ string "progn"
-  exprs ← many1 $ lexeme sexp
-  return $ Progn exprs
+  return $ SVar name
 
 quote :: Parser SExp
 quote = do
   lexeme $ string "quote"
   expr ← sexp
-  return $ Quote expr
+  return $ SQuote expr
 
 cond :: Parser SExp
 cond = do
@@ -66,21 +74,21 @@ cond = do
   condition ← sexp
   consequence ← sexp
   alternative ← sexp
-  return $ Cond condition consequence alternative
+  return $ SCond condition consequence alternative
 
 define :: Parser SExp
 define = do
   lexeme $ string "define" <* space
   name ← identifier
   value ← sexp
-  return $ Define name value
+  return $ SDefine name value
 
 letexpr :: Parser SExp
 letexpr = do
   lexeme $ string "let"
   bindings ← parens $ many1 binding
   body ← sexp
-  return $ Let bindings body
+  return $ SLet bindings body
 
 binding :: Parser (Identifier, SExp)
 binding = parens $ do
@@ -93,9 +101,9 @@ lambda = do
   lexeme $ string "lambda"
   args ← parens $ many' identifier
   body ← sexp
-  return $ Lambda args body
+  return $ SLambda args body
 
 list :: Parser SExp
 list = do
   exprs ← many1 sexp
-  return $ List exprs
+  return $ SList exprs

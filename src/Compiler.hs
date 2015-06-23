@@ -11,36 +11,26 @@ import Data.Maybe
 import Control.Monad.State
 import Control.Applicative hiding (Const)
 
+import Utils
 import Settings
 import Assembler
 import SExp
 import Builtins
+import Preprocessor
 import LibLoader
 
 type Error = String
 type Name = String
 
 {--
-  This is the function definition datatype
-  It contains everything to compile function into a labeled code block
-  Some time after here'll be a tricky field named "closure" also
---}
-data Function = Function { fname  :: Name
-                         , flabel :: Label
-                         , fargs  :: [Name]
-                         , fbody  :: SExp
-                         , frameSize :: Int
-                         }
-
-{--
   `flags` : List of passed flags
-  `functions` : Map of global functions by name
+  `functions` : Map of functions by name/label
   `labels` : List of labels already used in program
   `locals` : List of current local variables. Variable value is placed
   in [ebp - N], where N = length locals - <index of variable in list>
 --}
 data CompilerState = CS { flags :: [Flag]
-                        , functions :: [(Name, Function)]
+                        , functions :: [(Name, FuncDef)]
                         , labels :: [Label]
                         , locals :: [Name]
                         }
@@ -52,8 +42,12 @@ data CompilerState = CS { flags :: [Flag]
 type Compiler = StateT CompilerState (Either Error)
 
 -- TODO use lib somehow
-compile :: [Flag] → Assembler → Program → Either Error Assembler
-compile flags libs prog = evalStateT (compileM $ preprocessProg prog) (CS flags [] [] [])
+compile :: [Flag] → Assembler → Source → Either Error Assembler
+compile flags libs prog = do
+  (programBody, funcs) ← preprocess prog
+  let lbls = map label funcs
+      funcs' = zip lbls funcs
+  evalStateT (compileM programBody) (CS flags funcs' lbls [])
 
 {--
   Main compile function.
@@ -62,10 +56,8 @@ compile flags libs prog = evalStateT (compileM $ preprocessProg prog) (CS flags 
   1) Scope analysis and building a scope tables
   2) Making code
 --}
-compileM :: Program → Compiler Assembler
+compileM :: AExp → Compiler Assembler
 compileM prog = do
-  buildScopeTables prog
-
   defines ← gets $ map snd ∘ functions
   funcs ← mapM compileFunction defines
 
@@ -79,57 +71,48 @@ compileM prog = do
   if withoutMain
   then return code
   else do
-    let mainBody = filter (not ∘ isFunDefinition) prog
-    main ← compileBody $ Progn mainBody
-    let mainFun = CodeFunction "main" (main ⊕ [CodeBlob [Ret]])
-    return $ addFunction mainFun $ addGlobalLabel "main" code
-
-isFunDefinition :: SExp → Bool
-isFunDefinition (Define _ (Lambda _ _)) = True
-isFunDefinition _ = False
+    main ← compileFunction $ FD "main" ["argc", "argv"] [] prog (countLocals prog + 2)
+    return $ addFunction main $ addGlobalLabel "main" code
 
 flagSet :: Flag → Compiler Bool
 flagSet f = gets $ (f ∈) ∘ flags
 
+getFunction :: Name → Compiler (Maybe FuncDef)
+getFunction nm = gets $ lookup nm ∘ functions
+
+{--
+  Label manipulation.
+--}
 labelUsed :: Label → Compiler Bool
 labelUsed l = gets $ (l ∈) ∘ labels
 
 useLabel :: Label → Compiler ()
 useLabel l = modify $ \cs → cs { labels = l : labels cs }
 
-getFunction :: Name → Compiler (Maybe Function)
-getFunction nm = gets $ lookup nm ∘ functions
-
-{--
-  Get function label with respect to settings:
-  prepend it with `_` if flag is passed
---}
+-- Use given label if it hasn't been used yet
 getFuncLabel :: Name → Compiler Label
 getFuncLabel nm = do
-  isPrefixed ← flagSet LabelPrefixes
-  let nm' = if isPrefixed then "_" ++ nm else nm
-
-  hasLabel ← labelUsed nm'
+  hasLabel ← labelUsed nm
   if hasLabel
-  then fail $ "duplicate definition of " ++ nm
+  then fail $ "Duplicate definition of " ++ nm
   else do
-    useLabel nm'
-    return nm'
+    useLabel nm
+    return nm
 
 allLabels :: [Label]
-allLabels = ["lbl"] ++ concatMap enumerate allLabels
-    where enumerate s = map (s ++) digits
-          digits = map (:[]) ['0'..'9']
-{--
-  Get local label which haven't been used yet for sure.
---}
+allLabels = enumerate "lbl"
+
+-- Get local label which haven't been used yet for sure.
 newLocalLabel :: Compiler Label
 newLocalLabel = do
   used ← gets labels
   let newl = head $ filter (not ∘ (∈ used)) allLabels
-  modify $ \cs → cs { labels = newl : labels cs }
+  useLabel newl
   return newl
 
+{--
+  Local variables manipulation
+--}
 addLocalVar :: Name → Compiler ()
 addLocalVar v = modify $ \cs → cs { locals = v : locals cs }
 
@@ -144,30 +127,31 @@ localVarPlace v = do
     return $ "[rbp - " ++ show ((length locs - i) ⋅ 8) ++ "]"
 
 {--
-  Translates `Function` to `CodeFunction`
+  Translates `FuncDef` to `CodeFunction`
   Compiles function body and make it suitable assembler function body
   In particular, generates code for creating proper stack frame
 --}
-compileFunction :: Function → Compiler CodeFunction
+compileFunction :: FuncDef → Compiler CodeFunction
 compileFunction foo = do
-  let movArgCode = moveArguments $ fargs foo
+  let movArgCode = moveArguments $ args foo
 
   initStackFrame foo
-  code ← compileBody $ fbody foo
+  code ← compileBody $ body foo
   resetStackFrame foo
 
-  let code' = [CodeBlob [Enter (show $ 8 * frameSize foo) "0"]] ⊕
+  let code' = [CodeBlob [Enter (show $ 8 * nlocals foo) "0"]] ⊕
               movArgCode ⊕
+              [LocalLabel "tailcall"] ⊕
               code ⊕
               [CodeBlob [Leave, Ret]]
 
-  return $ CodeFunction (flabel foo) code'
+  return $ CodeFunction (label foo) code'
 
-initStackFrame :: Function → Compiler ()
-initStackFrame foo = forM_ (fargs foo) addLocalVar
+initStackFrame :: FuncDef → Compiler ()
+initStackFrame foo = forM_ (args foo) addLocalVar
 
-resetStackFrame :: Function → Compiler ()
-resetStackFrame foo = forM_ (fargs foo) removeLocalVar
+resetStackFrame :: FuncDef → Compiler ()
+resetStackFrame foo = forM_ (args foo) removeLocalVar
 
 
 {--
@@ -201,6 +185,10 @@ putArguments args = putRegs (take 6 args) ⊕ putStack (drop 6 args)
           putStack as = mconcat $ map putSt $ reverse as
           putSt ab = ab ⊕ [CodeBlob [Push "rax"]]
 
+putArgsTail :: [[CodeBlock]] → [CodeBlock]
+putArgsTail args = mconcat $ map putLoc $ zip args [1..]
+    where putLoc (a, n) = a ⊕ [CodeBlob [Mov ("[rbp - " ++ show (n ⋅ 8) ++ "]") "rax"]]
+
 pushArgsRegs :: Int → [CodeBlock]
 pushArgsRegs n = [CodeBlob $ map Push $ take (min n 6) argsOrder]
 
@@ -215,8 +203,7 @@ clearStackArgs n
 {--
   A function which should compile `SExp` into assembler code.
 --}
-compileBody :: SExp → Compiler [CodeBlock]
-compileBody (Define _ _) = fail "Defines are not allowed in the body"
+compileBody :: AExp → Compiler [CodeBlock]
 compileBody (Progn ss) = concat <$> mapM compileBody ss
 compileBody (Const n) = return [CodeBlob [Mov "rax" (show n)]]
 compileBody (Cond i t e) = do
@@ -232,22 +219,22 @@ compileBody (Cond i t e) = do
          eb ⊕
          [LocalLabel finL]
 
-compileBody (List ((Var f):args)) =
-    case getBuiltin f $ length args of
-      Just b → body b <$> mapM compileBody args
-      Nothing → do
-        mfoo ← getFunction f
-        case mfoo of
-          Just foo → do
-                  as ← mapM compileBody args
-                  return $
-                         pushArgsRegs (length args) ⊕
-                         putArguments as ⊕ [CodeBlob [Call $ flabel foo]] ⊕
-                         clearStackArgs (length args) ⊕
-                         popArgsRegs (length args)
-          Nothing → fail $ "Undefined function: " ++ f
-
-compileBody (List ((Const n):_)) = fail $ "'" ++ show n ++"' is not a function."
+compileBody (BuiltinCall b as) = applyBuiltin b <$> mapM compileBody as
+compileBody (Funcall f as) = do
+  mfoo ← getFunction f
+  case mfoo of
+    Just foo → do
+              as' ← mapM compileBody as
+              let n = length as
+              return $
+                     pushArgsRegs n ⊕
+                     putArguments as' ⊕ [CodeBlob [Call $ label foo]] ⊕
+                     clearStackArgs n ⊕
+                     popArgsRegs n
+    Nothing → fail $ "Undefined function: " ++ f
+compileBody (Tailcall f as) = do
+  as' ← mapM compileBody as
+  return $ putArgsTail as' ⊕ [CodeBlob [Jump ".tailcall"]]
 compileBody (Let bnd e) = do
                    binds ← mapM bindVar bnd
                    eb ← compileBody e
@@ -261,31 +248,9 @@ compileBody (Var v) = do
 
 compileBody _ = fail "unsupported language"
 
-bindVar :: (Name, SExp) → Compiler [CodeBlock]
+bindVar :: (Name, AExp) → Compiler [CodeBlock]
 bindVar (v, e) = do
   eb ← compileBody e
   addLocalVar v
   place ← localVarPlace v
   return $ eb ⊕ [CodeBlob [Mov (fromJust place) "rax"]]
-
-{--
-  Performs scope analysis and scope tables building
-  TBD
---}
-buildScopeTables :: Program → Compiler ()
-buildScopeTables prog = do
-  cs ← get
-  funcs ← mapM toFunc $ filter isFunDefinition prog
-  put $ cs { functions = funcs }
-      where toFunc (Define nm (Lambda args bod)) = do
-                          lbl ← getFuncLabel nm
-                          return (nm, Function nm lbl args bod sfSize)
-                              where sfSize = length args + countLocals bod
-
-countLocals :: SExp → Int
-countLocals (Let binds e) = length binds + countLocals e + (sum $ map (countLocals ∘ snd) binds)
-countLocals (Cond a b c) = countLocals a + countLocals b + countLocals c
-countLocals (Quote e) = countLocals e
-countLocals (List ss) = sum $ map countLocals ss
-countLocals (Progn ss) = sum $ map countLocals ss
-countLocals _ = 0

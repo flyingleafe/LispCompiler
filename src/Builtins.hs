@@ -1,15 +1,16 @@
 {-# LANGUAGE UnicodeSyntax, OverloadedStrings #-}
 
-module Builtins ( Builtin(..)
-                , builtins
-                , builtinName
-                , getBuiltin
+module Builtins ( stdFuncs
+                , hasBuiltin
+                , applyBuiltin
                 ) where
 
+import Utils
 import Assembler
 import Prelude.Unicode
 import Data.Monoid.Unicode
 import Data.List
+import Data.Maybe
 
 {--
   This is a datatype presenting builtin functions, like arithmetic operations.
@@ -23,15 +24,19 @@ data Builtin = Inline { name :: String, argn :: [Int],
                         body :: [[CodeBlock]] → [CodeBlock] }
 
 -- True if name is reserved for builtin
-builtinName :: String → Bool
-builtinName nm = any (\b → name b ≡ nm) builtins
+hasBuiltin :: String → Int → Bool
+hasBuiltin nm n = any (\b → name b ≡ nm ∧ n ∈ argn b) builtins
 
 -- Finds builtin with certain name and args number
 getBuiltin :: String → Int → Maybe Builtin
 getBuiltin nm n = find (\b → name b ≡ nm ∧ n ∈ argn b) builtins
 
-from :: Int → [Int]
-from n = iterate (+1) n
+applyBuiltin :: String → [[CodeBlock]] → [CodeBlock]
+applyBuiltin nm = body $ fromJust $ find (\b → name b ≡ nm) builtins
+
+-- List of functions in standard library
+stdFuncs :: [String]
+stdFuncs = []
 
 builtins :: [Builtin]
 builtins = [ Inline "not" [1]      not'      -- this one is lognot, casts to bool
