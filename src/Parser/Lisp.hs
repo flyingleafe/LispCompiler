@@ -4,10 +4,11 @@ module Parser.Lisp where
 
 import Prelude hiding (takeWhile)
 import Prelude.Unicode
+import Data.Monoid.Unicode
 import SExp
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Char8 as BS
-import Control.Applicative ((<|>), (<*), (*>))
+import Control.Applicative ((<$>), (<|>), (<*), (*>))
 
 lexeme, parens :: Parser a → Parser a
 lexeme p = p <* skipSpace
@@ -24,11 +25,18 @@ sexp :: Parser SExp
 sexp = constexpr <|> var <|>
        parens (progn <|> quote <|> cond <|> define <|> letexpr <|> lambda <|> list)
 
+builtinId :: Parser Identifier
+builtinId = BS.unpack <$> takeWhile1 (inClass "-~/%+*=<>")
+
+ordinaryId :: Parser Identifier
+ordinaryId = do
+  beg ← takeWhile1 $ isAlpha_ascii
+  let isOk c = isAlpha_ascii c ∨ isDigit c ∨ inClass "-_/'" c
+  end ← takeWhile isOk
+  return $ BS.unpack $ beg ⊕ end
+
 identifier :: Parser Identifier
-identifier = do
-  let okChar c = isAlpha_ascii c ∨ isDigit c ∨ inClass "-~_/%+*='<>" c
-  token ← lexeme $ takeWhile1 okChar
-  return $ BS.unpack token
+identifier = lexeme $ builtinId <|> ordinaryId
 
 constexpr :: Parser SExp
 constexpr = do
