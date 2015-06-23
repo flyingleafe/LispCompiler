@@ -241,10 +241,10 @@ compileBody (List ((Var f):args)) =
           Just foo → do
                   as ← mapM compileBody args
                   return $
-                         pushArgRegs (length args) ⊕
+                         pushArgsRegs (length args) ⊕
                          putArguments as ⊕ [CodeBlob [Call $ flabel foo]] ⊕
                          clearStackArgs (length args) ⊕
-                         popArgRegs (length args)
+                         popArgsRegs (length args)
           Nothing → fail $ "Undefined function: " ++ f
 
 compileBody (List ((Const n):_)) = fail $ "'" ++ show n ++"' is not a function."
