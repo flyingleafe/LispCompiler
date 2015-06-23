@@ -53,7 +53,12 @@ builtins = [ Inline "not" 1 not'
 not', btw_not, neg, and', or', equal, plus, minus,
   mul, div', mod', nop, less, leq, greater, geq :: [[CodeBlock]] → [CodeBlock]
 
-not' [a] = a ⊕ [CodeBlob [Shr "rax" "1", Dec "rax", Shr "rax" "63"]]
+not' [a] = a ⊕ [CodeBlob [ Mov "rdx" "rax"
+                         , Shr "rax" "1"
+                         , And "rdx" "1"
+                         , Or "rax" "rdx"
+                         , Dec "rax"
+                         , Shr "rax" "63"]]
 
 btw_not [a] = a ⊕ [CodeBlob [Not "rax"]]
 
@@ -74,7 +79,7 @@ nop [a] = a ⊕ [CodeBlob []]
 equal [a, b] = not' [a ⊕
                      [CodeBlob [Push "rax"]] ⊕
                      b ⊕
-                     [CodeBlob [Pop "rdx", Sub "rax" "rdx"]]]
+                     [CodeBlob [Pop "rdx", Xor "rax" "rdx"]]]
 
 plus [a, b] = a ⊕
               [CodeBlob [Push "rax"]] ⊕
@@ -98,9 +103,9 @@ div' [a, b] = b ⊕
 
 mod' [a, b] = div' [a, b] ⊕ [CodeBlob [Mov "rax" "rdx"]]
 
-less [a, b] = a ⊕
+less [a, b] = b ⊕
               [CodeBlob [Push "rax"]] ⊕
-              b ⊕
+              a ⊕
               [CodeBlob [Pop "rdx", Sub "rax" "rdx", Shr "rax" "63"]]
 
 greater [a, b] = less [b, a]

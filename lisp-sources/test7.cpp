@@ -25,7 +25,7 @@ int main()
             }
         }
     }
-    if (!less3(1, 1, 0, 1, 1, 1)) return 2;
+    if (!less3(0, 0, 0, 1, 1, 1)) return 2;
     if (!less3(5, 3, 2, 8, -10, 228)) return 3;
     return 0;
 }

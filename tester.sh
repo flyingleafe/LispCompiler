@@ -20,7 +20,7 @@ do
         c0=$?
         yasm -felf64 -gdwarf2 -o tmp/test.o tmp/test.yasm
         c1=$?
-        c++ tmp/test.o $externtester -o tmp/test
+        c++ -ggdb tmp/test.o $externtester -o tmp/test
         c2=$?
         chmod 744 tmp/test
         ./tmp/test >> ./tmp/output
@@ -30,7 +30,7 @@ do
             echo "[PASSED] for "$inputsource", return code "$c3
             rm tmp/*
         else
-            echo "[FALIED] for "$inputsource
+            echo "[FAILED] for "$inputsource
             echo "Error mask (return codes for compiler:yasm:gcc:program): "$c0" "$c1" "$c2" "$c3
             exit
         fi
