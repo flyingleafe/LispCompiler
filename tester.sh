@@ -6,7 +6,7 @@ if [ "$1" != "" ] ; then
 fi
 cabal build compiler
 mkdir tmp
-sources=$(find lisp-sources -iname "test$testnum.lisp" | sort -h)
+sources=$(find test/lisp -iname "test$testnum.lisp" | sort -h)
 for inputsource in $sources
 do
     echo "processing "$inputsource
