@@ -22,7 +22,7 @@ usage =
 
 defaultFlags :: [Flag]
 defaultFlags =
-  -- [ExternLib "lispstdlib.yasm"]    -- Enable this if you're brave enough
+  -- [ExternLib "lispstdlib.asm"]    -- Enable this if you're brave enough
   []
 
 -- Flags, input file, output files
