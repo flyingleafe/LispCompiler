@@ -46,7 +46,7 @@ builtins = [ Inline "not" [1]      not'      -- this one is lognot, casts to boo
            , Inline "/"   (from 1) div'
            , Inline "%"   [2]      mod'
 
-           , Inline "="   (from 1) equal
+           , Inline "="   [1,2]    equal
            , Inline "<"   [2]      less
            , Inline "<="  [2]      leq
            , Inline ">"   [2]      greater
@@ -128,7 +128,6 @@ equal [a, b] = not' [a ⊕
                      b ⊕
                      [CodeBlob [Pop "rdx",
                                 Xor "rax" "rdx"]]]
-equal (x:xs) = equal $ x:[equal xs]
 
 less [a, b] = b ⊕
               [CodeBlob [Push "rax"]] ⊕

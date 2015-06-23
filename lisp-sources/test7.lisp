@@ -5,6 +5,12 @@
                         -1
                       0))))
 
+(define compare1 (lambda (a b)
+                   (if (= a b)
+                       0
+                     (if (< a b)
+                         -1
+                       1))))
 
 (define less3 (lambda (a b c d e f)
                 (if (< a d)

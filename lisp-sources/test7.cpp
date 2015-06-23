@@ -4,6 +4,7 @@ using namespace std;
 
 extern "C" {
     int compare(int a, int b);
+    int compare1(int a, int b);
     int less3(int a, int b, int c, int d, int e, int f);
 }
 
@@ -23,6 +24,13 @@ int main()
                      << compare(i, j) << endl;
                 return 1;
             }
+            if (cmp(i, j) != compare1(i, j)) {
+                cerr << "i, j, compare1: "
+                     << i << " " << j << " "
+                     << compare1(i, j) << endl;
+                return 1;
+            }
+
         }
     }
     if (!less3(0, 0, 0, 1, 1, 1)) return 2;
