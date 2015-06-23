@@ -7,7 +7,6 @@ import System.IO
 import Data.List (find, nub, intersect)
 import Data.Monoid
 import Data.Monoid.Unicode
-import Data.Either (isLeft)
 import Control.Monad
 import Control.Applicative ((<$>))
 import qualified Data.ByteString.Char8 as BS
@@ -17,6 +16,10 @@ import Assembler
 import Parser.Asm
 
 data NamedLib = NamedLib String Assembler
+
+isLeft :: Either a b → Bool
+isLeft (Left _) = True
+isLeft _ = False
 
 {--
   Parses flags, gets all the desired libs from files if possible,

@@ -1,6 +1,7 @@
 {-# LANGUAGE UnicodeSyntax #-}
 module Main where
 
+import Prelude.Unicode
 import System.IO
 import System.Environment
 import System.Directory
@@ -27,7 +28,6 @@ processIO handling = do
      handling inputFiles output flags
      mapM hClose inputFiles
      hClose output
-
 main :: IO ()
 main = processIO $ \inputs output flags →
   do contents ← mapM BS.hGetContents inputs
