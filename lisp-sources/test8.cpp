@@ -15,15 +15,15 @@ int ack(int m, int n) {
 
 int main()
 {
-    for (int i = 1; i < 3; i++) {
+    for (int i = 1; i < 4; i++) {
         for (int j = 1; j < 3; j++) {
-            if (ack(i, j) != ackermann(i, j)) {
+            //  if (ack(i, j) != ackermann(i, j)) {
                 cerr << "ack = " << ack(i, j)
                      << " while ackermann = " << ackermann(i, j)
                      << " for i = " << i
                      << " for j = " << j << endl;
-                return i;
-            }
+                //return i;
+                // }
         }
     }
     return 0;
