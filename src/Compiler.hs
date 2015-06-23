@@ -53,7 +53,7 @@ type Compiler = StateT CompilerState (Either Error)
 
 -- TODO use lib somehow
 compile :: [Flag] → Assembler → Program → Either Error Assembler
-compile flags libs prog = evalStateT (compileM prog) (CS flags [] [] [])
+compile flags libs prog = evalStateT (compileM $ preprocessProg prog) (CS flags [] [] [])
 
 {--
   Main compile function.

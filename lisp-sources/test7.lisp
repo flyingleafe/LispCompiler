@@ -11,6 +11,6 @@
                     1
                   (if (and (= a d) (< b e))
                       1
-                    (if (and (and (= a d) (= b e)) (< c f))
+                    (if (and (= a d) (= b e) (< c f))
                         1
                       0)))))
