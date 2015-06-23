@@ -201,6 +201,17 @@ putArguments args = putRegs (take 6 args) ⊕ putStack (drop 6 args)
           putStack as = mconcat $ map putSt $ reverse as
           putSt ab = ab ⊕ [CodeBlob [Push "rax"]]
 
+pushArgsRegs :: Int → [CodeBlock]
+pushArgsRegs n = [CodeBlob $ map Push $ take (min n 6) argsOrder]
+
+popArgsRegs :: Int → [CodeBlock]
+popArgsRegs n = [CodeBlob $ map Pop $ reverse $ take (min n 6) argsOrder]
+
+clearStackArgs :: Int → [CodeBlock]
+clearStackArgs n
+    | n <= 6 = []
+    | otherwise = [CodeBlob [Add "esp" (show $ (n - 6) ⋅ 8)]]
+
 {--
   A function which should compile `SExp` into assembler code.
 --}
@@ -229,7 +240,11 @@ compileBody (List ((Var f):args)) =
         case mfoo of
           Just foo → do
                   as ← mapM compileBody args
-                  return $ putArguments as ⊕ [CodeBlob [Call $ flabel foo]]
+                  return $
+                         pushArgRegs (length args) ⊕
+                         putArguments as ⊕ [CodeBlob [Call $ flabel foo]] ⊕
+                         clearStackArgs (length args) ⊕
+                         popArgRegs (length args)
           Nothing → fail $ "Undefined function: " ++ f
 
 compileBody (List ((Const n):_)) = fail $ "'" ++ show n ++"' is not a function."
