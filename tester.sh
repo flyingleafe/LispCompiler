@@ -1,8 +1,12 @@
 #!/bin/sh
 
+testnum="*"
+if [ "$1" != "" ] ; then
+    testnum=$1
+fi
 cabal build compiler
 mkdir tmp
-sources=$(find lisp-sources -iname "test*.lisp" | sort -h)
+sources=$(find lisp-sources -iname "test$testnum.lisp" | sort -h)
 for inputsource in $sources
 do
     echo "processing "$inputsource
