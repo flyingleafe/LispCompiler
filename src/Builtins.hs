@@ -122,7 +122,7 @@ div' (x:xs) = div' $ x:[mul xs]
 
 mod' [a, b] = div' [a, b] ⊕ [CodeBlob [Mov "rax" "rdx"]]
 
-equal [a]    = a
+equal [a]    = toBool [a]
 equal [a, b] = not' [a ⊕
                      [CodeBlob [Push "rax"]] ⊕
                      b ⊕
