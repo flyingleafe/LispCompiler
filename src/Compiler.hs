@@ -193,7 +193,7 @@ putArgsTail :: [[CodeBlock]] → [CodeBlock]
 putArgsTail args = mconcat (map pushArg args) ⊕ popArgs (length args)
     where pushArg a = a ⊕ [CodeBlob [Push "rax"]]
           popArgs n = mconcat $ map popArg $ reverse [1..n]
-          popArg k = [CodeBlob [Pop $ "[rbp - " ++ show (k ⋅ 8) ++ "]"]]
+          popArg k = [CodeBlob [Pop "rax", Mov ("[rbp - " ++ show (k ⋅ 8) ++ "]") "rax"]]
 
 pushArgsRegs :: Int → [CodeBlock]
 pushArgsRegs n = [CodeBlob $ map Push $ take (min n 6) argsOrder]
@@ -249,6 +249,7 @@ compileBody (Tailcall f as) = do
 compileBody (Let bnd e) = do
                    binds ← mapM bindVar bnd
                    eb ← compileBody e
+                   forM_ bnd $ removeLocalVar ∘ fst
                    return $ mconcat binds ⊕ eb
 compileBody (Var v) = do
   pl ← localVarPlace v
@@ -257,8 +258,9 @@ compileBody (Var v) = do
     Just place → return [CodeBlob [Mov "rax" place]]
 compileBody _ = fail "unsupported language"
 
-
-
+{--
+  Local variables indroduction
+--}
 bindVar :: (Name, AExp) → Compiler [CodeBlock]
 bindVar (v, e) = do
   eb ← compileBody e
