@@ -190,8 +190,10 @@ putArguments args = putRegs (take 6 args) ⊕ putStack (drop 6 args)
           putSt ab = ab ⊕ [CodeBlob [Push "rax"]]
 
 putArgsTail :: [[CodeBlock]] → [CodeBlock]
-putArgsTail args = mconcat $ map putLoc $ zip args [1..]
-    where putLoc (a, n) = a ⊕ [CodeBlob [Mov ("[rbp - " ++ show (n ⋅ 8) ++ "]") "rax"]]
+putArgsTail args = mconcat (map pushArg args) ⊕ popArgs (length args)
+    where pushArg a = a ⊕ [CodeBlob [Push "rax"]]
+          popArgs n = mconcat $ map popArg $ reverse [1..n]
+          popArg k = [CodeBlob [Pop $ "[rbp - " ++ show (k ⋅ 8) ++ "]"]]
 
 pushArgsRegs :: Int → [CodeBlock]
 pushArgsRegs n = [CodeBlob $ map Push $ take (min n 6) argsOrder]
