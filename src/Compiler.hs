@@ -159,9 +159,19 @@ compileFunction foo = do
 
   let code' = [CodeBlob [Enter (show $ 8 * nlocals foo) "0"]] ⊕
               movArgCode ⊕
-              [LocalLabel "tailcall"] ⊕
+              [CodeBlob [
+--                  Push "r13",
+--                  Push "r14",
+--                  Push "r15"
+                  ],
+               LocalLabel "tailcall"] ⊕
               code ⊕
-              [CodeBlob [Leave, Ret]]
+              [CodeBlob [
+--                  Pop "r15",
+--                  Pop "r14",
+--                  Pop "r13",
+                  Leave,
+                  Ret]]
 
   return $ CodeFunction (label foo) code'
 

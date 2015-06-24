@@ -6,9 +6,11 @@ extern free
 
 section .text
 
+;;; Prints int to stdout
+;;; void printInt(int a);
 printInt:
+        mov     rsi, rdi
         mov     rdi, printInt_outlabel
-        mov     rsi, rax
         call    printf
         ret
 
