@@ -22,7 +22,8 @@ usage =
 
 defaultFlags :: [Flag]
 defaultFlags =
-  [ExternLib "src/lispstdlib.asm"]    -- Enable this if you're brave enough
+  [ExternLib "src/stdlib/lstdio.asm",
+   ExternLib "src/stdlib/lmemory.asm"]    -- Enable this if you're brave enough
 --  []
 
 -- Flags, input file, output files

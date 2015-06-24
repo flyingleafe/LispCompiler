@@ -1,6 +1,6 @@
 {-# LANGUAGE UnicodeSyntax, NoImplicitPrelude, OverloadedStrings #-}
 
-module Parser.Asm (processAssembler, parseCode) where
+module Parser.Asm (processAssembler, processAssemblerRes, parseCode) where
 
 import Prelude hiding (takeWhile, concat)
 import Prelude.Unicode
@@ -229,7 +229,7 @@ parseAssembler = do
   codefuncs ← sepBy parseCodeFunction (many1 trash)
   many1 trash
   dataS ← option [] ((parseSection "data" <* many1 trash) *> sepBy1 parseDataLabel (many1 trash))
-  many1 trash
+  many' trash
   bssS ← option [] ((parseSection "bss" <* many1 trash) *> sepBy1 parseBssLabel (many1 trash))
   many' trash
   endOfInput
@@ -240,3 +240,6 @@ parseCode s = feed (parse (parseCodeBlocks <* (skipSpace >> endOfInput)) s) ""
 
 processAssembler :: ByteString → Either String Assembler
 processAssembler s = parseOnly parseAssembler s
+
+processAssemblerRes :: ByteString → Result Assembler
+processAssemblerRes s = parse parseAssembler s

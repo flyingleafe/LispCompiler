@@ -17,6 +17,7 @@ import Assembler
 import SExp
 import Builtins
 import Preprocessor
+import LibLoader
 
 type Error = String
 type Name = String
@@ -24,13 +25,16 @@ type Name = String
 {--
   `flags` : List of passed flags
   `functions` : Map of functions by name/label
+  `availableExterns` : Labels that are available to the compiler from libs
+  `usedExterns` : Extern labels that are needed for compiler to link only used libs
   `labels` : List of labels already used in program
   `locals` : List of current local variables. Variable value is placed
   in [ebp - N], where N = length locals - <index of variable in list>
 --}
 data CompilerState = CS { flags :: [Flag]
                         , functions :: [(Name, FuncDef)]
-                        , imports :: [Label]
+                        , availableExterns :: [Label]
+                        , usedExterns :: [Label]
                         , labels :: [Label]
                         , locals :: [Name]
                         }
@@ -41,14 +45,14 @@ data CompilerState = CS { flags :: [Flag]
 --}
 type Compiler = StateT CompilerState (Either Error)
 
--- TODO use lib somehow
-compile :: [Flag] → Assembler → Source → Either Error Assembler
+compile :: [Flag] → [NamedLib] → Source → Either Error Assembler
 compile flags libs prog = do
   (programBody, funcs) ← preprocess prog
   let lbls = map label funcs
       funcs' = zip lbls funcs
-  asm ← evalStateT (compileM programBody) (CS flags funcs' (map cflabel $ textSec libs) lbls [])
-  return $ libs ⊕ asm
+      importedExterns = concatMap libExterns libs
+  asm ← evalStateT (compileM programBody libs) (CS flags funcs' importedExterns [] [] [])
+  return $ asm
 
 {--
   Main compile function.
@@ -57,23 +61,33 @@ compile flags libs prog = do
   1) Scope analysis and building a scope tables
   2) Making code
 --}
-compileM :: AExp → Compiler Assembler
-compileM prog = do
+compileM :: AExp → [NamedLib] → Compiler Assembler
+compileM prog libs = do
   defines ← gets $ map snd ∘ functions
   funcs ← mapM compileFunction defines
 
   let flabels = map cflabel funcs
-      code =
-        -- It could be added somehow like this
-        -- libs ⊕
-        Assembler funcs [] [] [] flabels
+      code = Assembler funcs [] [] [] flabels
 
   withoutMain ← flagSet WithoutMain
   if withoutMain
-  then return code
+  then do
+     linkedCode ← linkLibs libs code
+     return linkedCode
   else do
     main ← compileFunction $ FD "main" ["argc", "argv"] [] prog (countLocals prog + 2)
-    return $ addFunction main $ addGlobalLabel "main" code
+    linkedCode ← linkLibs libs code
+    return $ addFunction main $ addGlobalLabel "main" linkedCode
+
+linkLibs :: [NamedLib] → Assembler → Compiler Assembler
+linkLibs libs asm = do
+  used ← gets usedExterns
+  let isAffected :: NamedLib → Bool
+      isAffected lib = (not . null) ((libExterns lib) `intersect` used)
+      affectedLibs = filter isAffected libs
+  case mergeNamedLibs affectedLibs >>= maybeMergeAsms asm of
+    Left err → fail ("Cannot merge needed libraries: " ++ err)
+    Right asm' → return asm'
 
 flagSet :: Flag → Compiler Bool
 flagSet f = gets $ (f ∈) ∘ flags
@@ -81,8 +95,8 @@ flagSet f = gets $ (f ∈) ∘ flags
 getFunction :: Name → Compiler (Maybe FuncDef)
 getFunction nm = gets $ lookup nm ∘ functions
 
-getImported :: Name → Compiler (Maybe Label)
-getImported nm = gets $ find (≡ nm) ∘ imports
+getAvailableExterns :: Name → Compiler (Maybe Label)
+getAvailableExterns nm = gets $ find (≡ nm) ∘ availableExterns
 
 {--
   Label manipulation.
@@ -227,8 +241,9 @@ compileBody (Cond i t e) = do
 compileBody (BuiltinCall b as) = applyBuiltin b <$> mapM compileBody as
 compileBody (Funcall f as) = do
   mfoo ← getFunction f
-  mimp ← getImported f
-  let procFoo name = do
+  mimp ← getAvailableExterns f
+  let procFoo :: String → Compiler [CodeBlock]
+      procFoo name = do
         as' ← mapM compileBody as
         let n = length as
         return $
@@ -236,12 +251,14 @@ compileBody (Funcall f as) = do
           putArguments as' ⊕ [CodeBlob [Call name]] ⊕
           clearStackArgs n ⊕
           popArgsRegs n
+      addUsedExtern :: String → Compiler ()
+      addUsedExtern name = modify (\cs → cs { usedExterns = name : usedExterns cs })
   case (mfoo, mimp) of
    (Just foo, Just foo') → fail ("Duplicate function. Calling " ++ f ++ " when "
                         ++ "it's imported from somewhere (check your libs) :"
                         ++ (show foo) ++ " " ++ (show foo'))
    (Just foo, Nothing) → procFoo $ label foo
-   (Nothing, Just foo) → procFoo foo
+   (Nothing, Just foo) → addUsedExtern foo >> procFoo foo
    (Nothing, Nothing) → fail $ "Undefined function: " ++ f
 compileBody (Tailcall f as) = do
   as' ← mapM compileBody as

@@ -4,6 +4,7 @@ module Main where
 import Parser.Asm
 import System.IO
 import System.Environment
+import Data.Attoparsec.ByteString.Char8(Result(..))
 import qualified Data.ByteString.Char8 as BS
 
 

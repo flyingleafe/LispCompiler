@@ -3,10 +3,11 @@
 module Assembler where
 
 import Prelude
+import Prelude.Unicode
 import Data.Text (strip, unpack, pack)
+import Data.List (find, nub, intersect)
 import Data.Monoid
 import Data.Monoid.Unicode
-import Data.List (nub)
 
 type Label = String
 
@@ -79,15 +80,6 @@ instance Monoid [CodeBlock] where
     mappend a b = case (last a, head b) of
                     (CodeBlob as, CodeBlob bs) → init a ++ (CodeBlob $ as ++ bs) : tail b
                     _ → a ++ b
-
-instance Monoid Assembler where
-  mempty = Assembler [] [] [] [] []
-  mappend (Assembler t1 d1 b1 e1 g1) (Assembler t2 d2 b2 e2 g2) =
-    Assembler (t1 ⊕ t2)
-    (nub $ d1 ++ d2)
-    (nub $ b1 ++ b2)
-    (nub $ e1 ++ e2)
-    (nub $ g1 ++ g2)
 
 --- SHOW PART
 
@@ -167,3 +159,39 @@ instance Show Assembler where
     "\nsection .text\n" ++ (unlines $ map show t) ++
     "\nsection .data\n" ++ (unlines $ map (bigtabbed . show) d) ++
     "\nsection .bss\n"  ++ (unlines $ map (bigtabbed . show) b))
+
+{--
+  Returns result of lib merge or description why it can't be done
+--}
+maybeMergeAsms :: Assembler → Assembler → Either String Assembler
+maybeMergeAsms asm1@(Assembler t1 d1 b1 e1 g1) asm2@(Assembler t2 d2 b2 e2 g2) =
+  case find (\x → fst $ x (asm1, asm2)) cantBeMergedPredicates of
+   Just foo    → Left $ snd $ foo (asm1, asm2)
+   Nothing     → Right $
+                 Assembler (t1 ⊕ t2)
+                 (nub $ d1 ++ d2)
+                 (nub $ b1 ++ b2)
+                 (nub $ e1 ++ e2)
+                 (nub $ g1 ++ g2)
+
+{--
+  These are predicates for reasons when two libraries can not be merged
+  together (with description)
+--}
+cantBeMergedPredicates :: [(Assembler, Assembler) → (Bool, String)]
+cantBeMergedPredicates = [
+  \(Assembler t d b _ _, _) →
+   (sumlabels t d b ≢ nub (sumlabels t d b),
+  "first file contains duplicate labels")
+  ,
+  \(_, Assembler t d b _ _) →
+   (sumlabels t d b ≢ nub (sumlabels t d b),
+  "second file contains duplicate labels")
+  ,
+  \(Assembler t d b _ _, Assembler t' d' b' _ _) →
+   ((not . null) (sumlabels t d b `intersect` sumlabels t' d' b'),
+   "labels in files intersect")
+  ]
+  where
+    sumlabels :: [CodeFunction] → [DataLabel] → [BssLabel] → [String]
+    sumlabels t d b = (map cflabel t) ++ (map datalabel d) ++ (map bsslabel b)
