@@ -17,7 +17,6 @@ import Assembler
 import SExp
 import Builtins
 import Preprocessor
-import LibLoader
 
 type Error = String
 type Name = String
@@ -31,6 +30,7 @@ type Name = String
 --}
 data CompilerState = CS { flags :: [Flag]
                         , functions :: [(Name, FuncDef)]
+                        , imports :: [Label]
                         , labels :: [Label]
                         , locals :: [Name]
                         }
@@ -47,7 +47,8 @@ compile flags libs prog = do
   (programBody, funcs) ← preprocess prog
   let lbls = map label funcs
       funcs' = zip lbls funcs
-  evalStateT (compileM programBody) (CS flags funcs' lbls [])
+  asm ← evalStateT (compileM programBody) (CS flags funcs' (map cflabel $ textSec libs) lbls [])
+  return $ libs ⊕ asm
 
 {--
   Main compile function.
@@ -79,6 +80,9 @@ flagSet f = gets $ (f ∈) ∘ flags
 
 getFunction :: Name → Compiler (Maybe FuncDef)
 getFunction nm = gets $ lookup nm ∘ functions
+
+getImported :: Name → Compiler (Maybe Label)
+getImported nm = gets $ find (≡ nm) ∘ imports
 
 {--
   Label manipulation.
@@ -218,20 +222,25 @@ compileBody (Cond i t e) = do
          [CodeBlob [Jump ("." ++ finL)], LocalLabel elseL] ⊕
          eb ⊕
          [LocalLabel finL]
-
 compileBody (BuiltinCall b as) = applyBuiltin b <$> mapM compileBody as
 compileBody (Funcall f as) = do
   mfoo ← getFunction f
-  case mfoo of
-    Just foo → do
-              as' ← mapM compileBody as
-              let n = length as
-              return $
-                     pushArgsRegs n ⊕
-                     putArguments as' ⊕ [CodeBlob [Call $ label foo]] ⊕
-                     clearStackArgs n ⊕
-                     popArgsRegs n
-    Nothing → fail $ "Undefined function: " ++ f
+  mimp ← getImported f
+  let procFoo name = do
+        as' ← mapM compileBody as
+        let n = length as
+        return $
+          pushArgsRegs n ⊕
+          putArguments as' ⊕ [CodeBlob [Call name]] ⊕
+          clearStackArgs n ⊕
+          popArgsRegs n
+  case (mfoo, mimp) of
+   (Just foo, Just foo') → fail ("Duplicate function. Calling " ++ f ++ " when "
+                        ++ "it's imported from somewhere (check your libs) :"
+                        ++ (show foo) ++ " " ++ (show foo'))
+   (Just foo, Nothing) → procFoo $ label foo
+   (Nothing, Just foo) → procFoo foo
+   (Nothing, Nothing) → fail $ "Undefined function: " ++ f
 compileBody (Tailcall f as) = do
   as' ← mapM compileBody as
   return $ putArgsTail as' ⊕ [CodeBlob [Jump ".tailcall"]]
@@ -239,14 +248,14 @@ compileBody (Let bnd e) = do
                    binds ← mapM bindVar bnd
                    eb ← compileBody e
                    return $ mconcat binds ⊕ eb
-
 compileBody (Var v) = do
   pl ← localVarPlace v
   case pl of
     Nothing → fail $ "Undeclared variable '" ++ v ++ "'"
     Just place → return [CodeBlob [Mov "rax" place]]
-
 compileBody _ = fail "unsupported language"
+
+
 
 bindVar :: (Name, AExp) → Compiler [CodeBlock]
 bindVar (v, e) = do

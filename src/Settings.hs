@@ -22,8 +22,8 @@ usage =
 
 defaultFlags :: [Flag]
 defaultFlags =
-  -- [ExternLib "lispstdlib.asm"]    -- Enable this if you're brave enough
-  []
+  [ExternLib "src/lispstdlib.asm"]    -- Enable this if you're brave enough
+--  []
 
 -- Flags, input file, output files
 type Configuration = ([Flag], [String])

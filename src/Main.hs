@@ -1,10 +1,8 @@
 {-# LANGUAGE UnicodeSyntax #-}
 module Main where
 
-import Prelude.Unicode
 import System.IO
 import System.Environment
-import System.Directory
 import Data.List (nub)
 import Control.Applicative ((<$>))
 import qualified Data.ByteString.Char8 as BS
@@ -12,9 +10,7 @@ import qualified Data.ByteString.Char8 as BS
 import Parser.Lisp
 import Compiler
 import Settings
-import Assembler
 import LibLoader
-import SExp
 
 processIO :: ([Handle] → Handle → [Flag] → IO ()) → IO ()
 processIO handling = do
@@ -28,6 +24,7 @@ processIO handling = do
      handling inputFiles output flags
      mapM hClose inputFiles
      hClose output
+
 main :: IO ()
 main = processIO $ \inputs output flags →
   do contents ← mapM BS.hGetContents inputs
@@ -35,7 +32,6 @@ main = processIO $ \inputs output flags →
        Left err → hPutStrLn output $ "Couldn't parse: " ++ err
        Right term → do
          libs ← loadLibs flags
-         putStrLn $ "number of expressions parsed: " ++ show (length term)
          case libs of
           Left err → hPutStrLn output $ "Couldn't load the library: " ++ err
           Right libs → do

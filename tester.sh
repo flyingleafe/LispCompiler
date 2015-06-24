@@ -27,12 +27,12 @@ do
         c++ -ggdb tmp/test.o $externtester -o tmp/test
         c2=$?
         chmod 744 tmp/test
-        ./tmp/test >> ./tmp/output
+        ./tmp/test > ./tmp/output
         c3=$?
 
         if [ $c1 -eq 0 ] && [ $c2 -eq 0 ] && [ $c3 -eq 0 ] ; then
             echo "[PASSED] for "$inputsource", return code "$c3
-            rm tmp/*
+            #rm tmp/*
         else
             echo "[FAILED] for "$inputsource
             echo "Error mask (return codes for compiler:yasm:gcc:program): "$c0" "$c1" "$c2" "$c3
@@ -46,19 +46,20 @@ do
         c0=$?
         yasm -felf64 -gdwarf2 -o tmp/test.o tmp/test.yasm
         c1=$?
-        gcc tmp/test.o -o tmp/test
+        gcc tmp/test.o -g -o tmp/test
         c2=$?
         chmod 744 tmp/test
-        ./tmp/test >> ./tmp/output
+        ./tmp/test > ./tmp/output
         c3=$?
 
         if [ $c1 -eq 0 ] && [ $c2 -eq 0 ] ; then
             if [ -f "$rightoutput" ] && ! diff ./tmp/output $rightoutput >/dev/null ; then
-                echo "[FAILED] for "$inputsource", outputs differ, check "$rightoutput" and ./tmp/output contents"
+                echo "[FAILED] for "$inputsource", outputs differ, check "$rightoutput" and ./tmp/output contents. Diff:\n"
+                diff ./tmp/output $rightoutput
                 exit
             fi
             echo "[PASSED] for "$inputsource", return code "$c3
-            rm tmp/*
+            #rm tmp/*
         else
             echo "[FALIED] for "$inputsource
             echo "Error mask (return codes for compiler:yasm:gcc:program): "$c0" "$c1" "$c2" "$c3
@@ -67,4 +68,4 @@ do
         echo
     fi
 done
-rm -rf tmp/
+#rm -rf tmp/

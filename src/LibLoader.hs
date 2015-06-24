@@ -64,15 +64,15 @@ maybeMergeAsms (NamedLib n1 asm1) (NamedLib n2 asm2) =
 --}
 cantBeMergedPredicates :: [(Assembler, Assembler) → (Bool, String)]
 cantBeMergedPredicates = [
-  \(Assembler t d b [] [], _) →
+  \(Assembler t d b _ _, _) →
    (sumlabels t d b ≢ nub (sumlabels t d b),
   "first file contains duplicate labels")
   ,
-  \(_, Assembler t d b [] []) →
+  \(_, Assembler t d b _ _) →
    (sumlabels t d b ≢ nub (sumlabels t d b),
   "second file contains duplicate labels")
   ,
-  \(Assembler t d b [] [], Assembler t' d' b' [] []) →
+  \(Assembler t d b _ _, Assembler t' d' b' _ _) →
    ((not . null) (sumlabels t d b `intersect` sumlabels t' d' b'),
    "labels in files intersect")
   ]

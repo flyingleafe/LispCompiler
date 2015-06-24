@@ -28,7 +28,7 @@ data FuncDef = FD { label :: String
                   , frees :: [Identifier]
                   , body :: AExp
                   , nlocals :: Int
-                  }
+                  } deriving Show
 
 type Preproc = StateT [FuncDef] (Either String)
 

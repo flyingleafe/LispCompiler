@@ -5,12 +5,13 @@ module Builtins ( stdFuncs
                 , applyBuiltin
                 ) where
 
-import Utils
-import Assembler
 import Prelude.Unicode
 import Data.Monoid.Unicode
 import Data.List
 import Data.Maybe
+
+import Utils (from)
+import Assembler
 
 {--
   This is a datatype presenting builtin functions, like arithmetic operations.
