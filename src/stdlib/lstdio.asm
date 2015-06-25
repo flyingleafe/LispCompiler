@@ -11,6 +11,7 @@ section .text
 printInt:
         mov     rsi, rdi
         mov     rdi, printInt_outlabel
+        xor     rax, rax
         call    printf
         ret
 

@@ -158,20 +158,12 @@ compileFunction foo = do
   resetStackFrame foo
 
   let code' = [CodeBlob [Enter (show $ 8 * nlocals foo) "0"]] ⊕
+              saveRegs ⊕
               movArgCode ⊕
-              [CodeBlob [
---                  Push "r13",
---                  Push "r14",
---                  Push "r15"
-                  ],
-               LocalLabel "tailcall"] ⊕
+              [LocalLabel "tailcall"] ⊕
               code ⊕
-              [CodeBlob [
---                  Pop "r15",
---                  Pop "r14",
---                  Pop "r13",
-                  Leave,
-                  Ret]]
+              restoreRegs ⊕
+              [CodeBlob [Leave, Ret]]
 
   return $ CodeFunction (label foo) code'
 
@@ -181,6 +173,11 @@ initStackFrame foo = forM_ (args foo) addLocalVar
 resetStackFrame :: FuncDef → Compiler ()
 resetStackFrame foo = forM_ (args foo) removeLocalVar
 
+saveRegs :: [CodeBlock]
+saveRegs = [CodeBlob [Push "rbx"]]
+
+restoreRegs :: [CodeBlock]
+restoreRegs = [CodeBlob [Pop "rbx"]]
 
 {--
   The following functions generate assembly code for reallocating
