@@ -57,10 +57,11 @@ builtins = [ Inline "not" [1]      not'      -- this one is lognot, casts to boo
            , Inline "<="  [2]      leq
            , Inline ">"   [2]      greater
            , Inline ">="  [2]      geq
+           , Inline "cons" [2]     cons
            ]
 
 toBool, not', btw_not, neg, and', or', equal, plus, minus,
-  mul, div', mod', nop, less, leq, greater, geq :: [[CodeBlock]] → [CodeBlock]
+  mul, div', mod', nop, less, leq, greater, geq, cons :: [[CodeBlock]] → [CodeBlock]
 
 toBool [a] = not'[not'[a]]
 
@@ -147,3 +148,8 @@ greater [a, b] = less [b, a]
 geq [a, b] = not' [less [a, b]]
 
 leq [a, b] = not' [greater [a, b]]
+
+cons [a, b] = a ⊕
+              [CodeBlob [Push "rax"]] ⊕
+              b ⊕
+              [CodeBlob [Mov "rsi" "rax", Pop "rdi", Call "memmgr_cons"]]

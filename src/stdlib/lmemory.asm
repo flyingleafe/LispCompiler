@@ -5,7 +5,7 @@ extern free
 global memmgr_init
 global memmgr_alloc
 global memmgr_free
-global lcons
+global memmgr_cons
 
 ;;; MEMORY MANAGEMENT IS UNTESTED CURRENTLY
 
@@ -112,7 +112,7 @@ memmgr_free:
         ret
 
 ;;; void* memmgr_cons(void* elem, void* list);
-lcons:
+memmgr_cons:
         push    rdi
         push    rsi
         mov     rdi, 16

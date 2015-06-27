@@ -75,7 +75,7 @@ compileM prog libs = do
      linkedCode ← linkLibs libs code
      return linkedCode
   else do
-    main ← compileFunction $ FD "main" ["argc", "argv"] [] prog (countLocals prog + 2)
+    main ← compileMain prog
     linkedCode ← linkLibs libs code
     return $ addFunction main $ addGlobalLabel "main" linkedCode
 
@@ -166,6 +166,13 @@ compileFunction foo = do
               [CodeBlob [Leave, Ret]]
 
   return $ CodeFunction (label foo) code'
+
+compileMain :: AExp → Compiler CodeFunction
+compileMain prog = do
+  let prog' = Progn [ (Funcall "memmgr_init" [])
+                    , prog
+                    , (Funcall "memmgr_free" [])]
+  compileFunction $ FD "main" ["argc", "argv"] [] prog' (countLocals prog' + 2)
 
 initStackFrame :: FuncDef → Compiler ()
 initStackFrame foo = forM_ (args foo) addLocalVar
@@ -280,6 +287,13 @@ compileBody (Var v) = do
   case pl of
     Nothing → fail $ "Undeclared variable '" ++ v ++ "'"
     Just place → return [CodeBlob [Mov "rax" place]]
+
+compileBody (List []) = return [CodeBlob [Xor "rax" "rax"]]  -- empty list is just a nullpointer
+compileBody (List (x:xs)) = do
+  first ← compileBody x
+  rest ← compileBody (List xs)
+  return $ applyBuiltin "cons" [first, rest]
+
 compileBody _ = fail "unsupported language"
 
 {--
