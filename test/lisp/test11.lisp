@@ -3,4 +3,4 @@
 (memmgr_alloc 16)
 (printInt 228)
 (memmgr_alloc 8)
-(printInt 1488)
+(printInt 123)

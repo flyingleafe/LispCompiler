@@ -1,4 +1,5 @@
 global printInt
+global printList
 
 extern printf
 extern malloc
@@ -55,7 +56,7 @@ printList:
         je      .end
 
         push    rdi
-        mov     rdi, printf_comma_sp
+        mov     rdi, printf_space
         xor     rax, rax
         call    printf
         pop     rdi
@@ -70,15 +71,22 @@ printList:
         xor     rax, rax
         call    printf
 
+        mov     rdi, printf_n
+        xor     rax, rax
+        call    printf
+
         pop     r11
         pop     r10
         pop     r9
+        xor     rax, rax
+        ret
 
 section .data
 
-printf_list_lb:         db '[', 0
-printf_list_rb:         db ']', 0
+printf_list_lb:         db '(', 0
+printf_list_rb:         db ')', 0
 printf_int:             db '%d', 0
 printf_int_n:           db '%d', 10, 0
 printf_n:               db 10, 0
 printf_comma_sp:        db ',', 0
+printf_space:           db ' ', 0

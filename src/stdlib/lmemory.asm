@@ -20,6 +20,7 @@ memmgr_init:
         xor     r9, r9
         xor     r10, r10
         xor     r11, r11
+        xor     rax, rax
         ret
 
 ;;; Reserves `size` bytes for use and returns pointer to it
@@ -109,6 +110,7 @@ memmgr_free:
         xor     r13, r13
         xor     r14, r14
         xor     r15, r15
+        xor     rax, rax
         ret
 
 ;;; void* memmgr_cons(void* elem, void* list);
