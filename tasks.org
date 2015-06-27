@@ -55,11 +55,12 @@
    CLOSED: [2015-06-23 Tue 14:55]
 ** DONE Вклеить загрузку библиотеки в компилятор                    :volhovm:
 ** DONE Поддержка нескольких библиотек, выборочная загрузка         :volhovm:
+** DONE Впилить динамическую память                                 :volhovm:
 ** STARTED Впилить базовый ввод/вывод в stdlib                      :volhovm:
-** STARTED Впилить динамическую память                              :volhovm:
 ** STARTED Проверка lisp-файла на consistency                   :flyingleafe:
    Проверка, что все функции, которые есть в файле, поддерживаются и т.д.
    Это теперь часть компилятора - функция, которая делает первый проход.
-** TODO [#A] Добавить push/pop r13-r15 в compileFunction        :flyingleafe:
+** CANCELED [#A] Добавить push/pop r13-r15 в compileFunction    :flyingleafe:
+   Поменяли конвенцию менеджера памяти
 ** TODO Выделять стекфрейм под каждую функцию скрипта           :flyingleafe:
 ** TODO Добавить константные строчки в .data                    :flyingleafe:

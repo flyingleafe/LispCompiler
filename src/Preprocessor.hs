@@ -136,7 +136,7 @@ addFunDef (SDefine nm (SLambda as bod)) = do
   bod' ← preproc bod
   addFunc nm as $ findTailcalls nm bod'
   return ()
-addFunDef _ = fail "wtf?"
+addFunDef _ = fail "Wrong definition format"
 
 preprocProg :: Source → Preproc AExp
 preprocProg ls = do
