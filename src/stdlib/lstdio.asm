@@ -12,26 +12,14 @@ section .text
 ;;; Prints int to stdout
 ;;; void printInt(int a);
 printInt:
-        push    r9
-        push    r10
-        push    r11
-
         mov     rsi, rdi
         mov     rdi, pattern_int_n
         xor     rax, rax
         call    printf
-
-        pop     r11
-        pop     r10
-        pop     r9
         ret
 
 ;;; void printList(void* a);
 printList:
-        push    r9
-        push    r10
-        push    r11
-
         push    rdi
         mov     rdi, pattern_list_lb
         xor     rax, rax
@@ -77,19 +65,12 @@ printList:
         xor     rax, rax
         call    printf
 
-        pop     r11
-        pop     r10
-        pop     r9
         xor     rax, rax
         ret
 
 ;;; Blocks
 ;;; int readInt();
 readInt:
-        push    r9
-        push    r10
-        push    r11
-
         sub     rsp, 8
         mov     rsi, rsp
         mov     rdi, pattern_int
@@ -98,10 +79,6 @@ readInt:
         add     rsp, 8
 
         mov     rax, qword[rsp-8]
-
-        pop     r11
-        pop     r10
-        pop     r9
         ret
 
 section .data
