@@ -19,7 +19,8 @@ isLeft (Left _) = True
 isLeft _ = False
 
 libExterns :: NamedLib → [String]
-libExterns = (map cflabel) . textSec . getLibCode
+--libExterns = (map cflabel) . textSec . getLibCode
+libExterns = globalLabels . getLibCode
 
 {--
   Parses flags, gets all the desired libs from files if possible.
