@@ -242,4 +242,4 @@ processAssembler :: ByteString → Either String Assembler
 processAssembler s = parseOnly parseAssembler s
 
 processAssemblerRes :: ByteString → Result Assembler
-processAssemblerRes s = parse parseAssembler s
+processAssemblerRes s = feed (parse parseAssembler s) ""

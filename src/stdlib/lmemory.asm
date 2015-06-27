@@ -1,76 +1,99 @@
 extern malloc
+extern realloc
 extern free
 
+global memmgr_init
 global memmgr_alloc
 global memmgr_free
+global lcons
 
 ;;; MEMORY MANAGEMENT IS UNTESTED CURRENTLY
 
 section .text
 
 ;;; Heap:
-;;; r13 -- beggining of heap
-;;; r14 -- current size in bytes
-;;; r15 -- current capacity
+;;; r9  -- beggining of heap
+;;; r10 -- current size in bytes
+;;; r11 -- current capacity
+
+memmgr_init:
+        xor     r9, r9
+        xor     r10, r10
+        xor     r11, r11
+        ret
 
 ;;; Reserves `size` bytes for use and returns pointer to it
-;;; void* memmgr_alloc(int size)
+;;; void* memmgr_alloc(int size);
 memmgr_alloc:
-        cmp     r13, 0
+        cmp     r9, 0
         je      .init
         mov     rax, rdi
-        add     rax, r14
-        cmp     rax, r15
+        add     rax, r10
+        cmp     rax, r11
         jg      .realloc
-        mov     rax, r13
-        add     rax, r14
-        add     r14, rdi
+        mov     rax, r9
+        add     rax, r10
+        add     r10, rdi
         ret
 
+        ;; Initialize memory with first chunk
         .init
-        mov     rdx, rax
-        call    malloc
-        ret
-
-        .realloc
-        ;; rcx -- wanted size
-        ;; rdx -- future size
-        mov     rcx, r15
-
-        ;; Calculate new memory size
-        .loop
-        mov     rax, rdx
-        mov     r10, 2
-        mul     r10
-        cmp     rcx, rdx
-        jge     .loop
-        mov     rdx, r8
-
-        ;; Allocate new memory chunk
+        xor     rax, rax
+        push    rdi
         call    malloc
         cmp     rax, 0
         je      .fail
-        mov     r8, rax
+        pop     r11
+        mov     r10, r11
+        mov     r9, rax
+        ret
 
-        ;; Copy old data
-        xor     rcx, rcx
-        .cploop
-        mov     al, byte[r13+rcx]
-        mov     byte[r8+rcx], al
-        inc     rcx
-        cmp     rcx, r14
-        jl      .cploop
+        .realloc
 
-        ;; Free old data
-        mov     rdx, r13
-        call    free
+        ;; Save current size
+        mov     rcx, r10
 
-        ;; Set new data pointer
-        mov     r13, r9
-        ;; Set new data size
-        mov     r15, r8
+        ;; r10 -- wanted size
+        ;; rax -- future capacity
+        ;; r8 -- expand coefficient
+        mov     r10, rax
+        mov     rax, r11
+        mov     r8, 2
 
+        ;; Calculate new memory size
+        .loop
+        mul     r8
+        cmp     r10, rax
+        jge     .loop
+
+        ;; Save new capacity
+        mov     r11, rax
+
+        ;; Allocate new memory chunk
+        push    r9
+        push    r10
+        push    r11
+        push    rcx
+        mov     rdi, r9
+        mov     rsi, r11
+        xor     rax, rax
+        call    realloc
+        pop     rcx
+        pop     r11
+        pop     r10
+        pop     r9
+        cmp     rax, 0
+        je      .fail
+
+        ;; No need to free -- realloc does
+
+        ;; Set r9 to new memory
+        mov     r9, rax
+
+        ;; Allocate address to new memory + prevsize offset
         mov     rax, r9
+        add     rax, rcx
+
         jmp     .return
         .fail
         mov     rax, 0
@@ -78,14 +101,24 @@ memmgr_alloc:
         ret
 
 ;;; Frees allocated buffer.
-;;; void memmgr_free()
+;;; void memmgr_free();
 memmgr_free:
-        mov     r13, rdx
+        mov     rdi, r9
+        xor     rax, rax
         call    free
         xor     r13, r13
         xor     r14, r14
         xor     r15, r15
         ret
 
-memmgr_list:
+;;; void* memmgr_cons(void* elem, void* list);
+lcons:
+        push    rdi
+        push    rsi
+        mov     rdi, 16
+        call    memmgr_alloc
+        pop     rsi
+        pop     rdi
+        mov     qword[rax], rdi
+        mov     qword[rax+8], rsi
         ret

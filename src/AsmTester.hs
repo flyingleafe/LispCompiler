@@ -17,9 +17,12 @@ processIO handling = do
   hClose input
   hClose output
 
-
 -- Testing source loading
+-- prints code to output, prints Result to stdout
 main :: IO ()
 main = processIO $ \input output → do
   file ← BS.hGetContents input
-  putStrLn $ show $ processAssembler file
+  hPutStrLn stdout $ show $ processAssemblerRes file
+  case processAssembler file of
+   Left err → hPutStrLn output err
+   Right code → hPutStrLn output $ show code

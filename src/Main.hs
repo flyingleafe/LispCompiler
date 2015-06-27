@@ -16,7 +16,7 @@ processIO :: ([Handle] → Handle → [Flag] → IO ()) → IO ()
 processIO handling = do
   args ← parseArgs <$> getArgs
   case args of
-   Left err → putStrLn $ "Can't parse arguments: " ++ err ++ "\n" ++ usage
+   Left err → hPutStrLn stderr $ "Can't parse arguments: " ++ err ++ "\n" ++ usage
    Right (flags', inputs) → do
      let flags = nub flags'
      inputFiles ← mapM (\x → openFile x ReadMode) inputs
@@ -29,13 +29,11 @@ main :: IO ()
 main = processIO $ \inputs output flags →
   do contents ← mapM BS.hGetContents inputs
      case mapM getSExps contents of
-       Left err → hPutStrLn output $ "Couldn't parse: " ++ err
+       Left err → hPutStrLn stderr $ "Couldn't parse: " ++ err
        Right term → do
          libs ← loadLibs flags
          case libs of
-          Left err → hPutStrLn output $ "Couldn't load the library: " ++ err
-          Right libs → do
-            let res = case compile flags libs $ concat term of
-                       Left err → "Compilation error: " ++ err
-                       Right prog → show prog
-            hPutStrLn output res
+          Left err → hPutStrLn stderr $ "Couldn't load the library: " ++ err
+          Right libs → case compile flags libs $ concat term of
+                        Left err → hPutStrLn stderr $ "Compilation error: " ++ err
+                        Right prog → hPutStrLn output $ show prog
