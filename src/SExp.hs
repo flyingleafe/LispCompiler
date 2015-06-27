@@ -23,7 +23,7 @@ data AExp = Const Int
           | Let [(Identifier, AExp)] AExp
           | BuiltinCall Identifier [AExp]
           | Funcall String [AExp]
-          | Tailcall String [AExp]
+          | Tailcall [AExp]
           | LambdaCall AExp [AExp]
           | List [AExp]
           | Progn [AExp]

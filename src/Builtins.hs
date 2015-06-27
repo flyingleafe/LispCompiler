@@ -58,10 +58,12 @@ builtins = [ Inline "not" [1]      not'      -- this one is lognot, casts to boo
            , Inline ">"   [2]      greater
            , Inline ">="  [2]      geq
            , Inline "cons" [2]     cons
-           ]
+           , Inline "car" [1]      car
+           , Inline "cdr" [1]      cdr
+            ]
 
 toBool, not', btw_not, neg, and', or', equal, plus, minus,
-  mul, div', mod', nop, less, leq, greater, geq, cons :: [[CodeBlock]] → [CodeBlock]
+  mul, div', mod', nop, less, leq, greater, geq, cons, car, cdr :: [[CodeBlock]] → [CodeBlock]
 
 toBool [a] = not'[not'[a]]
 
@@ -153,3 +155,6 @@ cons [a, b] = a ⊕
               [CodeBlob [Push "rax"]] ⊕
               b ⊕
               [CodeBlob [Mov "rsi" "rax", Pop "rdi", Call "memmgr_cons"]]
+
+car [a] = a ⊕ [CodeBlob [Mov "rax" "[rax]"]]
+cdr [a] = a ⊕ [CodeBlob [Mov "rax" "[rax + 8]"]]

@@ -44,7 +44,7 @@ listAE :: AExp → Maybe [AExp]
 listAE (Cond a b c) = Just [a, b, c]
 listAE (BuiltinCall _ ss) = Just ss
 listAE (Funcall _ ss) = Just ss
-listAE (Tailcall _ ss) = Just ss
+listAE (Tailcall ss) = Just ss
 listAE (LambdaCall s ss) = Just (s:ss)
 listAE (List ss) = Just ss
 listAE (Progn ss) = Just ss
@@ -127,7 +127,7 @@ findTailcalls nm (Let binds s) = Let binds $ findTailcalls nm s
 findTailcalls _ (Progn []) = Progn []
 findTailcalls nm (Progn ss) = Progn $ init ss ++ [findTailcalls nm $ last ss]
 findTailcalls nm cc@(Funcall nm' s) =
-    if nm ≡ nm' then Tailcall nm s
+    if nm ≡ nm' then Tailcall s
     else cc
 findTailcalls _ s = s
 

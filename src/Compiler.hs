@@ -274,9 +274,11 @@ compileBody (Funcall f as) = do
    (Just foo, Nothing) → procFoo $ label foo
    (Nothing, Just foo) → addUsedExtern foo >> procFoo foo
    (Nothing, Nothing) → fail $ "Undefined function: " ++ f
-compileBody (Tailcall f as) = do
+
+compileBody (Tailcall as) = do
   as' ← mapM compileBody as
   return $ putArgsTail as' ⊕ [CodeBlob [Jump ".tailcall"]]
+
 compileBody (Let bnd e) = do
                    binds ← mapM bindVar bnd
                    eb ← compileBody e
