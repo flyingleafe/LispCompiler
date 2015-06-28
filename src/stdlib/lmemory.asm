@@ -1,26 +1,11 @@
 extern malloc
 extern realloc
-extern free
 
-global memmgr_init
 global memmgr_alloc
-global memmgr_free
 global memmgr_cons
 global memmgr_make_closure
 
 section .text
-
-;;; Heap:
-;;; r12  -- beggining of heap
-;;; r13 -- current size in bytes
-;;; r14 -- current capacity
-
-memmgr_init:
-        xor     r12, r12
-        xor     r13, r13
-        xor     r14, r14
-        xor     rax, rax
-        ret
 
 ;;; Reserves `size` bytes for use and returns pointer to it
 ;;; void* memmgr_alloc(int size);
@@ -98,18 +83,6 @@ memmgr_alloc:
         .fail
         mov     rax, 0
         .return
-        ret
-
-;;; Frees allocated buffer.
-;;; void memmgr_free();
-memmgr_free:
-        mov     rdi, r12
-        xor     rax, rax
-        call    free
-        xor     r13, r13
-        xor     r14, r14
-        xor     r15, r15
-        xor     rax, rax
         ret
 
 ;;; void* memmgr_cons(void* elem, void* list);

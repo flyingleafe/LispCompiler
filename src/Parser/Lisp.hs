@@ -9,7 +9,7 @@ import SExp
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Internal as BS (c2w)
-import Control.Applicative ((<$>), (<|>), (<*), (*>))
+import Control.Applicative ((<$>), (<|>), (<*), (*>), (<*>))
 import Data.Char (ord)
 
 lexeme, parens :: Parser a → Parser a

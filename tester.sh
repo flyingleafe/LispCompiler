@@ -4,7 +4,9 @@ testnum="*"
 if [ "$1" != "" ] ; then
     testnum=$1
 fi
-cabal build compiler
+if ! cabal build compiler ; then
+    exit
+fi
 mkdir tmp
 sources=$(find test/lisp -iname "test$testnum.lisp" | sort -h)
 for inputsource in $sources

@@ -1,14 +1,15 @@
 {-# LANGUAGE UnicodeSyntax, OverloadedStrings #-}
 
-module Builtins ( stdFuncs
+module Builtins ( Builtin
                 , hasBuiltin
-                , applyBuiltin
+                , builtinBody
+                , builtinExterns
+                , getBuiltin
                 ) where
 
 import Prelude.Unicode
 import Data.Monoid.Unicode
 import Data.List
-import Data.Maybe
 
 import Utils (from)
 import Assembler
@@ -22,7 +23,8 @@ import Assembler
   `body' determines how function body behaves around its args' bodies.
 --}
 data Builtin = Inline { name :: String, argn :: [Int],
-                        body :: [[CodeBlock]] → [CodeBlock] }
+                        body :: [[CodeBlock]] → [CodeBlock],
+                        bExterns :: [String] }
 
 -- True if name is reserved for builtin
 hasBuiltin :: String → Int → Bool
@@ -32,34 +34,37 @@ hasBuiltin nm n = any (\b → name b ≡ nm ∧ n ∈ argn b) builtins
 getBuiltin :: String → Int → Maybe Builtin
 getBuiltin nm n = find (\b → name b ≡ nm ∧ n ∈ argn b) builtins
 
-applyBuiltin :: String → [[CodeBlock]] → [CodeBlock]
-applyBuiltin nm = body $ fromJust $ find (\b → name b ≡ nm) builtins
+builtinExterns :: Builtin → [String]
+builtinExterns = bExterns
 
--- List of functions in standard library
-stdFuncs :: [String]
-stdFuncs = []
+builtinBody :: Builtin → [[CodeBlock]] → [CodeBlock]
+builtinBody = body
+
+---- List of functions in standard library
+--stdFuncs :: [String]
+--stdFuncs = []
 
 builtins :: [Builtin]
-builtins = [ Inline "not" [1]      not'      -- this one is lognot, casts to bool
-           , Inline "~"   [1]      btw_not   -- this is bitwise not
-           , Inline "neg" [1]      neg       -- this is int sign negation
-           , Inline "and" (from 1) and'
-           , Inline "or"  (from 1) or'
+builtins = [ Inline "not"  [1]      not'     [] -- this one is lognot, casts to bool
+           , Inline "~"    [1]      btw_not  [] -- this is bitwise not
+           , Inline "neg"  [1]      neg      [] -- this is int sign negation
+           , Inline "and"  (from 1) and'     []
+           , Inline "or"   (from 1) or'      []
 
-           , Inline "+"   (from 1) plus
-           , Inline "-"   (from 1) minus
-           , Inline "*"   (from 1) mul
-           , Inline "/"   (from 1) div'
-           , Inline "%"   [2]      mod'
+           , Inline "+"    (from 1) plus     []
+           , Inline "-"    (from 1) minus    []
+           , Inline "*"    (from 1) mul      []
+           , Inline "/"    (from 1) div'     []
+           , Inline "%"    [2]      mod'     []
 
-           , Inline "="   [1,2]    equal
-           , Inline "<"   [2]      less
-           , Inline "<="  [2]      leq
-           , Inline ">"   [2]      greater
-           , Inline ">="  [2]      geq
-           , Inline "cons" [2]     cons
-           , Inline "car" [1]      car
-           , Inline "cdr" [1]      cdr
+           , Inline "="    [1,2]    equal    []
+           , Inline "<"    [2]      less     []
+           , Inline "<="   [2]      leq      []
+           , Inline ">"    [2]      greater  []
+           , Inline ">="   [2]      geq      []
+           , Inline "cons" [2]      cons     ["memmgr_cons"]
+           , Inline "car"  [1]      car      []
+           , Inline "cdr"  [1]      cdr      []
             ]
 
 toBool, not', btw_not, neg, and', or', equal, plus, minus,
