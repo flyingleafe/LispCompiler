@@ -13,6 +13,7 @@ do
 
     prefix=${inputsource:0:$((${#inputsource}-5))}
     rightoutput=$prefix".out"
+    rightinput=$prefix".in"
     externtester=$prefix".cpp"
 
 
@@ -40,7 +41,8 @@ do
         fi
         echo
     else
-        [ ! -f "$rightoutput" ] && echo "No output test pattern for this executable, checking only compiltion"
+        [ -f "$rightoutput" ] && echo "There's output test pattern for this executable"
+        [ -f "$rightinput" ] && echo "There's input test pattern for this executable"
 
         ./dist/build/compiler/compiler -o tmp/test.yasm $inputsource
         c0=$?
@@ -49,7 +51,12 @@ do
         gcc tmp/test.o -g -o tmp/test
         c2=$?
         chmod 744 tmp/test
-        ./tmp/test > ./tmp/output
+        if [ -f "$rightinput" ] ; then
+            ./tmp/test < $rightinput > ./tmp/output
+        else
+            ./tmp/test > ./tmp/output
+        fi
+
         c3=$?
 
         if [ $c1 -eq 0 ] && [ $c2 -eq 0 ] ; then
