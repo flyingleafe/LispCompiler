@@ -37,6 +37,7 @@ data CompilerState = CS { flags :: [Flag]
                         , usedExterns :: [Label]
                         , labels :: [Label]
                         , locals :: [Name]
+                        , freeVars :: [Name]
                         }
 
 {--
@@ -51,7 +52,7 @@ compile flags libs prog = do
   let lbls = map label funcs
       funcs' = zip lbls funcs
       importedExterns = concatMap libExterns libs
-  asm ← evalStateT (compileM programBody libs) (CS flags funcs' importedExterns [] [] [])
+  asm ← evalStateT (compileM programBody libs) (CS flags funcs' importedExterns [] [] [] [])
   return $ asm
 
 {--
@@ -144,6 +145,19 @@ localVarPlace v = do
     i ← elemIndex v locs
     return $ "[rbp - " ++ show ((length locs - i) ⋅ 8) ++ "]"
 
+freeVarPlace :: Name → Compiler (Maybe String)
+freeVarPlace v = do
+  fvs ← gets freeVars
+  return $ do
+    i ← elemIndex v fvs
+    return $ "[rbx + " ++ show (i ⋅ 8 + 8) ++ "]"
+
+varPlace :: Name → Compiler (Maybe String)
+varPlace v = do
+  lv ← localVarPlace v
+  fv ← freeVarPlace v
+  return $ lv <|> fv
+
 {--
   Translates `FuncDef` to `CodeFunction`
   Compiles function body and make it suitable assembler function body
@@ -175,10 +189,14 @@ compileMain prog = do
   compileFunction $ FD "main" ["argc", "argv"] [] prog' (countLocals prog' + 2)
 
 initStackFrame :: FuncDef → Compiler ()
-initStackFrame foo = forM_ (args foo) addLocalVar
+initStackFrame foo = do
+  forM_ (args foo) addLocalVar
+  modify $ \cs → cs { freeVars = frees foo }
 
 resetStackFrame :: FuncDef → Compiler ()
-resetStackFrame foo = forM_ (args foo) removeLocalVar
+resetStackFrame foo = do
+  forM_ (args foo) removeLocalVar
+  modify $ \cs → cs { freeVars = [] }
 
 saveRegs :: [CodeBlock]
 saveRegs = [CodeBlob [Push "rbx"]]
@@ -234,6 +252,16 @@ clearStackArgs n
     | n <= 6 = []
     | otherwise = [CodeBlob [Add "esp" (show $ (n - 6) ⋅ 8)]]
 
+callingCode' :: [CodeBlock] → [[CodeBlock]] → [CodeBlock]
+callingCode' call as = pushArgsRegs n ⊕
+                     putArguments as ⊕ call ⊕
+                     clearStackArgs n ⊕
+                     popArgsRegs n
+                         where n = length as
+
+callingCode :: Label → [[CodeBlock]] → [CodeBlock]
+callingCode foo = callingCode' [CodeBlob [Call foo]]
+
 {--
   A function which should compile `SExp` into assembler code.
 --}
@@ -259,12 +287,7 @@ compileBody (Funcall f as) = do
   let procFoo :: String → Compiler [CodeBlock]
       procFoo name = do
         as' ← mapM compileBody as
-        let n = length as
-        return $
-          pushArgsRegs n ⊕
-          putArguments as' ⊕ [CodeBlob [Call name]] ⊕
-          clearStackArgs n ⊕
-          popArgsRegs n
+        return $ callingCode name as'
       addUsedExtern :: String → Compiler ()
       addUsedExtern name = modify (\cs → cs { usedExterns = name : usedExterns cs })
   case (mfoo, mimp) of
@@ -279,13 +302,20 @@ compileBody (Tailcall as) = do
   as' ← mapM compileBody as
   return $ putArgsTail as' ⊕ [CodeBlob [Jump ".tailcall"]]
 
+compileBody (LambdaCall l as) = do
+  as' ← mapM compileBody as
+  clp ← compileBody l
+  let call = clp ⊕ [CodeBlob [Mov "rbx" "rax", Call "[rax]"]]
+  return $ [CodeBlob [Push "rbx"]] ⊕ callingCode' call as' ⊕ [CodeBlob [Pop "rbx"]]
+
 compileBody (Let bnd e) = do
                    binds ← mapM bindVar bnd
                    eb ← compileBody e
                    forM_ bnd $ removeLocalVar ∘ fst
                    return $ mconcat binds ⊕ eb
+
 compileBody (Var v) = do
-  pl ← localVarPlace v
+  pl ← varPlace v
   case pl of
     Nothing → fail $ "Undeclared variable '" ++ v ++ "'"
     Just place → return [CodeBlob [Mov "rax" place]]
@@ -295,6 +325,13 @@ compileBody (List (x:xs)) = do
   first ← compileBody x
   rest ← compileBody (List xs)
   return $ applyBuiltin "cons" [first, rest]
+
+compileBody (Closure lbl frs) = do
+  freeVals ← mapM (compileBody ∘ Var) frs
+  let as = [ [CodeBlob [Mov "rax" lbl]]
+           , [CodeBlob [Mov "rax" (show $ length frs)]]
+           ] ++ freeVals
+  return $ callingCode "memmgr_make_closure" as
 
 compileBody _ = fail "unsupported language"
 

@@ -9,9 +9,11 @@ module Preprocessor ( FuncDef(..)
 
 import Prelude.Unicode
 import Control.Monad.State.Lazy
+import Data.List
 import Data.List.Unicode
-import Control.Applicative ((<$>), (<*>))
+import Control.Applicative ((<$>), (<*>), (*>), (<*))
 import Data.Char (ord)
+
 
 import Utils
 import SExp
@@ -30,7 +32,11 @@ data FuncDef = FD { label :: String
                   , nlocals :: Int
                   } deriving Show
 
-type Preproc = StateT [FuncDef] (Either String)
+data PrepState = PS { funcs :: [FuncDef]
+                    , boundVars :: [Identifier]
+                    }
+
+type Preproc = StateT PrepState (Either String)
 
 isFunDefinition :: SExp → Bool
 isFunDefinition (SDefine _ (SLambda _ _)) = True
@@ -72,20 +78,37 @@ countLocals _ = 0
 --}
 addFunc :: Identifier → [Identifier] → AExp → Preproc [Identifier]
 addFunc nm as bod = do
-  present ← gets $ (nm ∈) ∘ map label
+  present ← gets $ (nm ∈) ∘ map label ∘ funcs
   if present then fail $ "Duplicate definition of function: " ++ nm
   else do
     let fr = findFrees bod
         nl = length as + countLocals bod
-    modify $ ((FD nm as fr bod nl):)
+    modify $ \ps → ps { funcs = (FD nm as fr bod nl) : funcs ps }
     return fr
+
+addBoundVar, removeBoundVar :: Identifier → Preproc ()
+addBoundVar v = modify $ \ps → ps { boundVars = v : boundVars ps }
+removeBoundVar v = modify $ \ps → ps { boundVars = delete v $ boundVars ps }
+
+addBoundVars, removeBoundVars :: [Identifier] → Preproc ()
+addBoundVars = mapM_ addBoundVar
+removeBoundVars = mapM_ removeBoundVar
+
+withBounds :: [Identifier] → Preproc a → Preproc a
+withBounds vs action = addBoundVars vs *> action <* removeBoundVars vs
+
+hasFunc :: Identifier → Preproc Bool
+hasFunc nm = gets $ (nm ∈) ∘ map label ∘ funcs
+
+hasBound :: Identifier → Preproc Bool
+hasBound nm = gets $ (nm ∈) ∘ boundVars
 
 flabels :: [String]
 flabels = enumerate "lambda"
 
 newFLabel :: Preproc String
 newFLabel = do
-  used ← gets $ map label
+  used ← gets $ map label ∘ funcs
   let new = head $ filter (not ∘ (∈ used)) flabels
   return new
 
@@ -100,7 +123,8 @@ preproc (SVar n) = return $ Var n
 preproc (SQuote (SList ss)) = List <$> mapM preproc ss
 preproc (SQuote s) = preproc s   -- no other uses for quote yet
 preproc (SCond a b c) = Cond <$> preproc a <*> preproc b <*> preproc c
-preproc (SLet bnds s) = Let <$> mapM ppBind bnds <*> preproc s
+preproc (SLet bnds s) = withBounds (map fst bnds) $
+                        Let <$> mapM ppBind bnds <*> preproc s
                                 where ppBind (x, s') = (x, ) <$> preproc s'
 preproc (SList []) = return $ List []
 preproc (SList ((SVar f):as)) =
@@ -108,12 +132,15 @@ preproc (SList ((SVar f):as)) =
     then macroexpand f <$> mapM preproc as
     else if hasBuiltin f (length as)
          then BuiltinCall f <$> mapM preproc as
-         else Funcall f <$> mapM preproc as
-preproc (SList _) = fail "Invalid (unsupported) list"
+         else do
+           hb ← hasBound f
+           if not hb then Funcall f <$> mapM preproc as
+           else LambdaCall (Var f) <$> mapM preproc as
+preproc (SList (s:ss)) = LambdaCall <$> preproc s <*> mapM preproc ss
 preproc (SString str) = return $ List $ map (Const ∘ ord) str
 preproc (SLambda as bod) = do
   lbl ← newFLabel
-  bod' ← preproc bod
+  bod' ← withBounds as $ preproc bod
   fr ← addFunc lbl as bod'
   return $ Closure lbl fr
 
@@ -146,4 +173,6 @@ preprocProg ls = do
   Progn <$> mapM preproc es
 
 preprocess :: Source → Either String (AExp, [FuncDef])
-preprocess ss = runStateT (preprocProg ss) []
+preprocess ss = do
+  (ae, PS foos _) ← runStateT (preprocProg ss) (PS [] [])
+  return (ae, foos)

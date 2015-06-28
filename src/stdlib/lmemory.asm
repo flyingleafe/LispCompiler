@@ -134,7 +134,7 @@ memmgr_make_closure:
         push    r9
         mov     rdi, rsi
         shl     rdi, 3          ; ×8
-        add     rdi, 16
+        add     rdi, 8
         call    memmgr_alloc
         pop     r9
         pop     r8
@@ -146,8 +146,6 @@ memmgr_make_closure:
         ;; Registers args
         mov     r10, rax
         mov     qword[r10], rdi
-        add     r10, 8
-        mov     qword[r10], rsi
         add     r10, 8
 
         xor     r11, r11
