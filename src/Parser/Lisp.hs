@@ -24,7 +24,7 @@ getSExps :: BS.ByteString → Either String [SExp]
 getSExps = parseOnly ((many1 $ skipSpace *> sexp) <* (skipSpace *> endOfInput)) ∘ omitComments
 
 sexp :: Parser SExp
-sexp = constexpr <|> var <|>
+sexp = constexpr <|> var <|> tickquote <|>
        parens (quote <|> cond <|> define <|> letexpr <|> lambda <|> list)
 
 builtinId :: Parser Identifier
@@ -62,33 +62,30 @@ var = do
   name ← identifier
   return $ SVar name
 
+tickquote :: Parser SExp
+tickquote = do
+  char '\''
+  SQuote <$> sexp
+
 quote :: Parser SExp
 quote = do
   lexeme $ string "quote"
-  expr ← sexp
-  return $ SQuote expr
+  SQuote <$> sexp
 
 cond :: Parser SExp
 cond = do
   lexeme $ string "if"
-  condition ← sexp
-  consequence ← sexp
-  alternative ← sexp
-  return $ SCond condition consequence alternative
+  SCond <$> sexp <*> sexp <*> sexp
 
 define :: Parser SExp
 define = do
   lexeme $ string "define" <* space
-  name ← identifier
-  value ← sexp
-  return $ SDefine name value
+  SDefine <$> identifier <*> sexp
 
 letexpr :: Parser SExp
 letexpr = do
   lexeme $ string "let"
-  bindings ← parens $ many1 binding
-  body ← sexp
-  return $ SLet bindings body
+  SLet <$> parens (many1 binding) <*> sexp
 
 binding :: Parser (Identifier, SExp)
 binding = parens $ do
@@ -99,11 +96,7 @@ binding = parens $ do
 lambda :: Parser SExp
 lambda = do
   lexeme $ string "lambda"
-  args ← parens $ many' identifier
-  body ← sexp
-  return $ SLambda args body
+  SLambda <$> parens (many' identifier) <*> sexp
 
 list :: Parser SExp
-list = do
-  exprs ← many1 sexp
-  return $ SList exprs
+list = SList <$> many1 sexp
