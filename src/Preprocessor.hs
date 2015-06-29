@@ -160,7 +160,7 @@ findTailcalls _ s = s
 
 addFunDef :: SExp → Preproc ()
 addFunDef (SDefine nm (SLambda as bod)) = do
-  bod' ← preproc bod
+  bod' ← withBounds as $ preproc bod
   addFunc nm as $ findTailcalls nm bod'
   return ()
 addFunDef _ = fail "Wrong definition format"
