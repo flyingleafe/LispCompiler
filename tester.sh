@@ -23,7 +23,7 @@ do
         echo "Using extern tester: "$externtester
 
         # Compiling lisp → yasm → elf
-        ./dist/build/compiler/compiler -M -o tmp/test.yasm $inputsource
+        ./dist/build/compiler/compiler -MS -o tmp/test.yasm $inputsource
         c0=$?
         yasm -felf64 -gdwarf2 -o tmp/test.o tmp/test.yasm
         c1=$?
@@ -46,7 +46,7 @@ do
         [ -f "$rightoutput" ] && echo "There's output test pattern for this executable"
         [ -f "$rightinput" ] && echo "There's input test pattern for this executable"
 
-        ./dist/build/compiler/compiler -o tmp/test.yasm $inputsource
+        ./dist/build/compiler/compiler -S -o tmp/test.yasm $inputsource
         c0=$?
         yasm -felf64 -gdwarf2 -o tmp/test.o tmp/test.yasm
         c1=$?

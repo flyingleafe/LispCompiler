@@ -1,8 +1,11 @@
 {-# LANGUAGE UnicodeSyntax #-}
 module Main where
 
+import Prelude.Unicode
 import System.IO
+import System.IO.Temp
 import System.Environment
+import System.Process
 import Data.List (nub)
 import Control.Applicative ((<$>))
 import qualified Data.ByteString.Char8 as BS
@@ -19,11 +22,13 @@ processIO handling = do
    Left err → hPutStrLn stderr $ "Can't parse arguments: " ++ err ++ "\n" ++ usage
    Right (flags', inputs) → do
      let flags = nub flags'
-     inputFiles ← mapM (\x → openFile x ReadMode) inputs
-     output ← openFile (outputOrDefault flags) WriteMode
-     handling inputFiles output flags
-     mapM hClose inputFiles
-     hClose output
+     if DisplayHelp ∈ flags
+     then hPutStrLn stdout usage
+     else do inputFiles ← mapM (\x → openFile x ReadMode) inputs
+             output ← openFile (outputOrDefault flags) WriteMode
+             handling inputFiles output flags
+             mapM hClose inputFiles
+             hClose output
 
 main :: IO ()
 main = processIO $ \inputs output flags →
@@ -36,4 +41,25 @@ main = processIO $ \inputs output flags →
           Left err → hPutStrLn stderr $ "Couldn't load the library: " ++ err
           Right libs → case compile flags libs $ concat term of
                         Left err → hPutStrLn stderr $ "Compilation error: " ++ err
-                        Right prog → hPutStrLn output $ show prog
+                        Right prog →
+                          if PreprocessOnly ∈ flags then
+                            hPutStrLn output $ show prog
+                          else do
+                            (pathin, h1)  ← openTempFile "/tmp" "lispcomptemp.yasm"
+                            (pathout, h2)  ← openTempFile "/tmp" "lispcomptemp.o"
+                            hPutStrLn h1 $! show prog
+                            hFlush h1
+                            callProcess "yasm" ["-felf64",
+                                                "-gdwarf2",
+                                                "-o", pathout,
+                                                pathin
+                                               ]
+                            putStrLn "yasm suceeded"
+                            hFlush h2
+                            callProcess "gcc" ["-ggdb",
+                                               "-o", outputOrDefault flags,
+                                               pathout
+                                              ]
+                            putStrLn "cc suceeded"
+                            hClose h1
+                            hClose h2
