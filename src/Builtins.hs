@@ -156,10 +156,11 @@ geq [a, b] = not' [less [a, b]]
 
 leq [a, b] = not' [greater [a, b]]
 
-cons [a, b] = a ⊕
+cons [a, b] = [CodeBlob [Push "rdi", Push "rsi"]] ⊕
+              a ⊕
               [CodeBlob [Push "rax"]] ⊕
               b ⊕
-              [CodeBlob [Mov "rsi" "rax", Pop "rdi", Call "memmgr_cons"]]
+              [CodeBlob [Mov "rsi" "rax", Pop "rdi", Call "memmgr_cons", Pop "rsi", Pop "rdi"]]
 
 car [a] = a ⊕ [CodeBlob [Mov "rax" "[rax]"]]
 cdr [a] = a ⊕ [CodeBlob [Mov "rax" "[rax + 8]"]]

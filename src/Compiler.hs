@@ -10,6 +10,7 @@ import Data.Monoid.Unicode
 import Data.Maybe
 import Control.Monad.State
 import Control.Applicative hiding (Const)
+import Debug.Trace
 
 import Utils
 import Settings
@@ -47,12 +48,12 @@ data CompilerState = CS { flags :: [Flag]
 type Compiler = StateT CompilerState (Either Error)
 
 compile :: [Flag] → [NamedLib] → Source → Either Error Assembler
-compile flags libs prog = do
+compile cflags libs prog = do
   (programBody, funcs) ← preprocess prog
   let lbls = map label funcs
       funcs' = zip lbls funcs
       importedExterns = concatMap libExterns libs
-  asm ← evalStateT (compileM programBody libs) (CS flags funcs' importedExterns [] [] [] [])
+  asm ← evalStateT (compileM programBody libs) (CS cflags funcs' importedExterns [] [] [] [])
   return $ asm
 
 {--
@@ -226,7 +227,7 @@ argsOrder = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"] ++ revStack 2
 moveArguments :: [Name] → [CodeBlock]
 moveArguments = movArgs 0
     where movArgs _ [] = []
-          movArgs n (v:vs) =
+          movArgs n (_:vs) =
               let dst = "[rbp - " ++ show ((n + 1)*8) ++ "]"
                   (src, preop) = if n < 6 then (argsOrder !! n, [])
                                  else ("rax", [CodeBlob [Mov "rax" (argsOrder !! n)]])
@@ -341,8 +342,6 @@ compileBody (Closure lbl frs) = do
            ] ++ freeVals
   addUsedExtern $ "memmgr_make_closure"
   return $ callingCode "memmgr_make_closure" as
-
-compileBody a = fail $ "Unsupported piece of language: " ++ show a
 
 {--
   Local variables indroduction

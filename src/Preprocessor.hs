@@ -34,6 +34,7 @@ data FuncDef = FD { label :: String
 
 data PrepState = PS { funcs :: [FuncDef]
                     , boundVars :: [Identifier]
+                    , usedLabels :: [String]
                     }
 
 type Preproc = StateT PrepState (Either String)
@@ -81,7 +82,7 @@ addFunc nm as bod = do
   present ← gets $ (nm ∈) ∘ map label ∘ funcs
   if present then fail $ "Duplicate definition of function: " ++ nm
   else do
-    let fr = findFrees bod
+    let fr = findFrees bod \\ as
         nl = length as + countLocals bod
     modify $ \ps → ps { funcs = (FD nm as fr bod nl) : funcs ps }
     return fr
@@ -108,9 +109,16 @@ flabels = enumerate "lambda"
 
 newFLabel :: Preproc String
 newFLabel = do
-  used ← gets $ map label ∘ funcs
+  used ← gets usedLabels
   let new = head $ filter (not ∘ (∈ used)) flabels
+  useFLabel new
   return new
+
+useFLabel :: String → Preproc ()
+useFLabel lbl = do
+  hasAlready ← gets $ (lbl ∈) ∘ usedLabels
+  if hasAlready then fail $ "Duplicate label usage: '" ++ lbl ++ "'"
+  else modify $ \ps → ps { usedLabels = lbl : usedLabels ps }
 
 {--
   Main preprocessing function.
@@ -174,5 +182,5 @@ preprocProg ls = do
 
 preprocess :: Source → Either String (AExp, [FuncDef])
 preprocess ss = do
-  (ae, PS foos _) ← runStateT (preprocProg ss) (PS [] [])
+  (ae, PS foos _ _) ← runStateT (preprocProg ss) (PS [] [] [])
   return (ae, foos)
