@@ -35,6 +35,7 @@ data FuncDef = FD { label :: String
 data PrepState = PS { funcs :: [FuncDef]
                     , boundVars :: [Identifier]
                     , usedLabels :: [String]
+                    , currentFunc :: Maybe String
                     }
 
 type Preproc = StateT PrepState (Either String)
@@ -104,6 +105,15 @@ hasFunc nm = gets $ (nm ∈) ∘ map label ∘ funcs
 hasBound :: Identifier → Preproc Bool
 hasBound nm = gets $ (nm ∈) ∘ boundVars
 
+getCurrentFunc :: Preproc (Maybe String)
+getCurrentFunc = gets $ currentFunc
+
+setCurrentFunc :: String → Preproc ()
+setCurrentFunc lbl = modify $ \ps → ps { currentFunc = Just lbl }
+
+unsetCurrentFunc :: Preproc ()
+unsetCurrentFunc = modify $ \ps → ps { currentFunc = Nothing }
+
 flabels :: [String]
 flabels = enumerate "lambda"
 
@@ -136,6 +146,13 @@ preproc (SLet bnds s) = withBounds (map fst bnds) $
                                 where ppBind (x, s') = (x, ) <$> preproc s'
 preproc (SList []) = return $ List []
 preproc (SList ((SVar f):as)) =
+    if f ≡ "recur"
+    then do
+         cur ← getCurrentFunc
+         case cur of
+           Nothing → fail "Recur lambda call outside function"
+           Just cur' → Funcall cur' <$> mapM preproc as
+    else
     if hasMacro f (length as)
     then macroexpand f <$> mapM preproc as
     else if hasBuiltin f (length as)
@@ -144,12 +161,15 @@ preproc (SList ((SVar f):as)) =
            hb ← hasBound f
            if not hb then Funcall f <$> mapM preproc as
            else LambdaCall (Var f) <$> mapM preproc as
+
 preproc (SList (s:ss)) = LambdaCall <$> preproc s <*> mapM preproc ss
 preproc (SString str) = return $ List $ map (Const ∘ ord) str
 preproc (SLambda as bod) = do
   lbl ← newFLabel
+  setCurrentFunc lbl
   bod' ← withBounds as $ preproc bod
-  fr ← addFunc lbl as bod'
+  fr ← addFunc lbl as $ findTailcalls lbl bod'
+  unsetCurrentFunc
   return $ Closure lbl fr
 
 {--
@@ -168,8 +188,10 @@ findTailcalls _ s = s
 
 addFunDef :: SExp → Preproc ()
 addFunDef (SDefine nm (SLambda as bod)) = do
+  setCurrentFunc nm
   bod' ← withBounds as $ preproc bod
   addFunc nm as $ findTailcalls nm bod'
+  unsetCurrentFunc
   return ()
 addFunDef _ = fail "Wrong definition format"
 
@@ -182,5 +204,5 @@ preprocProg ls = do
 
 preprocess :: Source → Either String (AExp, [FuncDef])
 preprocess ss = do
-  (ae, PS foos _ _) ← runStateT (preprocProg ss) (PS [] [] [])
+  (ae, PS foos _ _ _) ← runStateT (preprocProg ss) (PS [] [] [] Nothing)
   return (ae, foos)
