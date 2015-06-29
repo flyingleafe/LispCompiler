@@ -1,9 +1,12 @@
 extern malloc
 extern realloc
+extern scanf
 
 global memmgr_alloc
-global memmgr_cons
 global memmgr_make_closure
+global memmgr_cons
+;;; global memmgr_allocList
+global readString
 
 section .text
 
@@ -97,6 +100,7 @@ memmgr_cons:
         mov     qword[rax+8], rsi
         ret
 
+
 ;;; void* memmgr_make_closure(void* func, int argc, void* args...);
 memmgr_make_closure:
         push    rdi
@@ -164,3 +168,75 @@ memmgr_make_closure:
 
         .end
         ret
+
+;;; returns list of wanted length, filled with zeroes
+;;; void* memmgr_alloclist(int length);
+memmgr_allocList:
+        mov     rcx, rdi
+        mov     rax, 0
+        .loop
+        mov     rdi, 0
+        mov     rsi, rax
+        push    rcx
+        xor     rax, rax
+        call    memmgr_cons
+        pop     rcx
+        dec     rcx
+        cmp     rcx, 0
+        jg      .loop
+
+        ret
+
+;;; reads string, returns it as list of chars (allocated)
+;;; void *readString();
+readString:
+        sub     rsp, 1024        ; maximum supported string length
+        mov     rsi, rsp
+        mov     rdi, pattern_str
+        xor     rax, rax
+        call    scanf
+
+        ;; count length of list
+        xor     rcx, rcx
+        .loop1
+        mov     rax, rsp
+        add     rax, rcx
+        cmp     byte[rax], 0
+        je      .loop1_end
+        inc     rcx
+        cmp     rcx, 1024
+        je      .fail
+        jmp     .loop1
+        .loop1_end
+
+        ;; allocate list of needed size
+        mov     rdi, rcx
+        call    memmgr_allocList
+
+        ;; copy string to list
+        push    rax
+        mov     rcx, 8
+        .loop2
+        cmp     rax, 0
+        je      .loop2_end
+        mov     rdx, rsp
+        add     rdx, rcx
+        mov     dl, byte[rdx]
+        mov     byte[rax], dl
+        mov     rax, qword[rax+8]
+        inc     rcx
+        jmp     .loop2
+        .loop2_end
+
+        pop     rax
+        add     rsp, 1024
+        jmp     .return
+        .fail
+        mov     dword[0], 0
+        .return
+        ret
+
+
+section .data
+
+pattern_str:            db '%s', 0

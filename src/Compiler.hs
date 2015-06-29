@@ -183,7 +183,7 @@ compileFunction foo = do
   return $ CodeFunction (label foo) code'
 
 addUsedExtern :: String → Compiler ()
-addUsedExtern name = modify (\cs → cs { usedExterns = name : usedExterns cs })
+addUsedExtern name = modify (\cs → cs { usedExterns = nub $ name : usedExterns cs })
 
 compileMain :: AExp → Compiler CodeFunction
 compileMain prog = do
