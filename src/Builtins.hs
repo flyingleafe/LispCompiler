@@ -63,12 +63,13 @@ builtins = [ Inline "not"  [1]      not'     [] -- this one is lognot, casts to 
            , Inline ">"    [2]      greater  []
            , Inline ">="   [2]      geq      []
            , Inline "cons" [2]      cons     ["memmgr_cons"]
+           , Inline "append" (from 1) append ["memmgr_list_append"]
            , Inline "car"  [1]      car      []
            , Inline "cdr"  [1]      cdr      []
             ]
 
 toBool, not', btw_not, neg, and', or', equal, plus, minus,
-  mul, div', mod', nop, less, leq, greater, geq, cons, car, cdr :: [[CodeBlock]] → [CodeBlock]
+  mul, div', mod', nop, less, leq, greater, geq, cons, car, cdr, append :: [[CodeBlock]] → [CodeBlock]
 
 toBool [a] = not'[not'[a]]
 
@@ -164,3 +165,10 @@ cons [a, b] = [CodeBlob [Push "rdi", Push "rsi"]] ⊕
 
 car [a] = a ⊕ [CodeBlob [Mov "rax" "[rax]"]]
 cdr [a] = a ⊕ [CodeBlob [Mov "rax" "[rax + 8]"]]
+
+append [a] = a
+append (a:as) = [CodeBlob [Push "rdi", Push "rsi"]] ⊕
+                append as ⊕
+                [CodeBlob [Push "rax"]] ⊕
+                a ⊕
+                [CodeBlob [Mov "rdi" "rax", Pop "rsi", Call "memmgr_list_append", Pop "rsi", Pop "rdi"]]

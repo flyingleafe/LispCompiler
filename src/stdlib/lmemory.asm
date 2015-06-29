@@ -5,6 +5,7 @@ extern scanf
 global memmgr_alloc
 global memmgr_make_closure
 global memmgr_cons
+global memmgr_list_append
 ;;; global memmgr_allocList
 global readString
 
@@ -100,8 +101,25 @@ memmgr_cons:
         mov     qword[rax+8], rsi
         ret
 
+;;; void* memmgr_list_append(void* a, void* b);
+memmgr_list_append:
+        test    rdi, rdi
+        je      .stop
 
-;;; void* memmgr_make_closure(void* func, int argc, void* args...);
+        push    rdi
+        mov     rdi, [rdi + 8]
+        call    memmgr_list_append
+        mov     rsi, rax
+        pop     rdi
+        mov     rdi, [rdi]
+        call    memmgr_cons
+        ret
+
+        .stop
+        mov     rax, rsi
+        ret
+
+;;; Void* memmgr_make_closure(void* func, int argc, void* args...);
 memmgr_make_closure:
         push    rdi
         push    rsi
