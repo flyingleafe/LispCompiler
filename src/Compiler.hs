@@ -181,11 +181,16 @@ compileFunction foo = do
 
   return $ CodeFunction (label foo) code'
 
+addUsedExtern :: String → Compiler ()
+addUsedExtern name = modify (\cs → cs { usedExterns = name : usedExterns cs })
+
 compileMain :: AExp → Compiler CodeFunction
 compileMain prog = do
   let prog' = Progn [ (Funcall "memmgr_init" [])
                     , prog
                     , (Funcall "memmgr_free" [])]
+  addUsedExtern $ "memmgr_init"
+  addUsedExtern $ "memmgr_free"
   compileFunction $ FD "main" ["argc", "argv"] [] prog' (countLocals prog' + 2)
 
 initStackFrame :: FuncDef → Compiler ()
@@ -262,6 +267,9 @@ callingCode' call as = pushArgsRegs n ⊕
 callingCode :: Label → [[CodeBlock]] → [CodeBlock]
 callingCode foo = callingCode' [CodeBlob [Call foo]]
 
+applyBuiltin :: Builtin → [[CodeBlock]] → Compiler [CodeBlock]
+applyBuiltin b as = mapM_ addUsedExtern (builtinExterns b) >>
+                    (return $ builtinBody b as)
 {--
   A function which should compile `SExp` into assembler code.
 --}
@@ -280,7 +288,9 @@ compileBody (Cond i t e) = do
          [CodeBlob [Jump ("." ++ finL)], LocalLabel elseL] ⊕
          eb ⊕
          [LocalLabel finL]
-compileBody (BuiltinCall b as) = applyBuiltin b <$> mapM compileBody as
+compileBody (BuiltinCall b as) = case getBuiltin b $ length as of
+                                      Nothing → fail "Builtin unknown"
+                                      Just b' → (applyBuiltin b') =<< mapM compileBody as
 compileBody (Funcall f as) = do
   mfoo ← getFunction f
   mimp ← getAvailableExterns f
@@ -288,8 +298,6 @@ compileBody (Funcall f as) = do
       procFoo name = do
         as' ← mapM compileBody as
         return $ callingCode name as'
-      addUsedExtern :: String → Compiler ()
-      addUsedExtern name = modify (\cs → cs { usedExterns = name : usedExterns cs })
   case (mfoo, mimp) of
    (Just foo, Just foo') → fail ("Duplicate function. Calling " ++ f ++ " when "
                         ++ "it's imported from somewhere (check your libs) :"
@@ -324,16 +332,17 @@ compileBody (List []) = return [CodeBlob [Xor "rax" "rax"]]  -- empty list is ju
 compileBody (List (x:xs)) = do
   first ← compileBody x
   rest ← compileBody (List xs)
-  return $ applyBuiltin "cons" [first, rest]
+  (flip applyBuiltin) [first, rest] $ fromJust $ getBuiltin "cons" 2
 
 compileBody (Closure lbl frs) = do
   freeVals ← mapM (compileBody ∘ Var) frs
   let as = [ [CodeBlob [Mov "rax" lbl]]
            , [CodeBlob [Mov "rax" (show $ length frs)]]
            ] ++ freeVals
+  addUsedExtern $ "memmgr_make_closure"
   return $ callingCode "memmgr_make_closure" as
 
-compileBody _ = fail "unsupported language"
+compileBody a = fail $ "Unsupported piece of language: " ++ show a
 
 {--
   Local variables indroduction

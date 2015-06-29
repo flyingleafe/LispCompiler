@@ -14,6 +14,9 @@ import Parser.Asm
 
 data NamedLib = NamedLib { getLibName :: String, getLibCode :: Assembler }
 
+instance Show NamedLib where
+  show (NamedLib name _) = name
+
 isLeft :: Either a b → Bool
 isLeft (Left _) = True
 isLeft _ = False
