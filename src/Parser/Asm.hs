@@ -15,6 +15,9 @@ import Control.Applicative((<|>), (<$>), (<*), (*>), (<$))
 (<∨>) :: (s → Bool) → (s → Bool) → s → Bool
 (<∨>) a b c = a c ∨ b c
 
+(<⊕>) :: Monoid m ⇒ Parser m → Parser m → Parser m
+(<⊕>) = liftM2 mappend
+
 newline :: Parser Char
 newline = char '\n'
 
@@ -58,20 +61,24 @@ localLabelParser :: Parser CodeBlock
 localLabelParser = LocalLabel <$> unpack <$> ((wspaces' >> char '.') >> parseLabel
                                               <* (wspaces' >> option () afterCodeComment))
 
+wp :: Parser ByteString
+wp = choice $ map string ["byte", "word", "dword", "qword"]
+
+wordPrefix, wordPrefix' :: Parser ByteString
+wordPrefix = option empty wp <* wspaces'
+wordPrefix' = option empty $ wp <⊕> takeWhile (≡ ' ')
+
 -- arg parses argument of command -- register (or like-register), label in
 -- brackets or arithmetic operation in brackets like [2*rsi+6].
 arg :: Parser ByteString
-arg = liftM2 append ((option empty $ choice [string "byte",
-                                          string "word",
-                                          string "dword",
-                                          string "qword"]) <* wspaces')
+arg = wordPrefix <⊕>
       (parens' $ takeWhile (isLower <∨> isDigit <∨> (inClass "+*_.-") <∨> (≡ ' ')))
       <|>
       liftM2 append (string "0x") (takeWhile $ isDigit <∨> inClass "abcdefABCDEF")
       <|>
       (pack <$> show <$> signed decimal)
       <|>
-      parseLabel
+      wordPrefix' <⊕> parseLabel
       <|>
       takeWhile1 (isLower <∨> isDigit)
       <|> -- register

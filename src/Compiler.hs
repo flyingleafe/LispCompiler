@@ -1,14 +1,18 @@
-{-# LANGUAGE UnicodeSyntax, OverloadedStrings, NoImplicitPrelude #-}
+{-# LANGUAGE UnicodeSyntax, OverloadedStrings, NoImplicitPrelude, TemplateHaskell #-}
 
 module Compiler where
 
 import Prelude
 import Prelude.Unicode
 import Data.List
+import Data.List.Unicode
 import Data.Monoid
 import Data.Monoid.Unicode
 import Data.Maybe
+import qualified Data.Map as M
+import Control.Lens hiding (Const)
 import Control.Monad.State
+import Control.Comonad
 import Control.Applicative hiding (Const)
 import Debug.Trace
 
@@ -32,14 +36,15 @@ type Name = String
   `locals` : List of current local variables. Variable value is placed
   in [ebp - N], where N = length locals - <index of variable in list>
 --}
-data CompilerState = CS { flags :: [Flag]
-                        , functions :: [(Name, FuncDef)]
-                        , availableExterns :: [Label]
-                        , usedExterns :: [Label]
-                        , labels :: [Label]
-                        , locals :: [Name]
-                        , freeVars :: [Name]
+data CompilerState = CS { _flags :: [Flag]
+                        , _functions :: M.Map Name FuncDef
+                        , _availableExterns :: [Label]
+                        , _usedExterns :: [Label]
+                        , _labels :: [Label]
+                        , _locals :: [Variable]
+                        , _freeVars :: [Variable]
                         }
+makeLenses ''CompilerState
 
 {--
   A compiler is something with state what may fail with error,
@@ -50,8 +55,8 @@ type Compiler = StateT CompilerState (Either Error)
 compile :: [Flag] → [NamedLib] → Source → Either Error Assembler
 compile cflags libs prog = do
   (programBody, funcs) ← preprocess prog
-  let lbls = map label funcs
-      funcs' = zip lbls funcs
+  let lbls = map (^.label) funcs
+      funcs' = M.fromList $ zip lbls funcs
       importedExterns = concatMap libExterns libs
   asm ← evalStateT (compileM programBody libs) (CS cflags funcs' importedExterns [] [] [] [])
   return $ asm
@@ -65,7 +70,7 @@ compile cflags libs prog = do
 --}
 compileM :: AExp → [NamedLib] → Compiler Assembler
 compileM prog libs = do
-  defines ← gets $ map snd ∘ functions
+  defines ← useAll $ functions.traverse
   funcs ← mapM compileFunction defines
 
   let flabels = map cflabel funcs
@@ -83,40 +88,28 @@ compileM prog libs = do
 
 linkLibs :: [NamedLib] → Assembler → Compiler Assembler
 linkLibs libs asm = do
-  used ← gets usedExterns
+  used ← use usedExterns
   let isAffected :: NamedLib → Bool
-      isAffected lib = (not . null) ((libExterns lib) `intersect` used)
+      isAffected lib = (not ∘ null) (libExterns lib ∩ used)
       affectedLibs = filter isAffected libs
   case mergeNamedLibs affectedLibs >>= maybeMergeAsms asm of
-    Left err → fail ("Cannot merge needed libraries: " ++ err)
+    Left err → fail $ "Cannot merge needed libraries: " ++ err
     Right asm' → return asm'
 
 flagSet :: Flag → Compiler Bool
-flagSet f = gets $ (f ∈) ∘ flags
-
-getFunction :: Name → Compiler (Maybe FuncDef)
-getFunction nm = gets $ lookup nm ∘ functions
+flagSet f = use $ flags.hasEl f
 
 getAvailableExterns :: Name → Compiler (Maybe Label)
-getAvailableExterns nm = gets $ find (≡ nm) ∘ availableExterns
-
-{--
-  Label manipulation.
---}
-labelUsed :: Label → Compiler Bool
-labelUsed l = gets $ (l ∈) ∘ labels
-
-useLabel :: Label → Compiler ()
-useLabel l = modify $ \cs → cs { labels = l : labels cs }
+getAvailableExterns nm = gets $ find (≡ nm) ∘ _availableExterns
 
 -- Use given label if it hasn't been used yet
 getFuncLabel :: Name → Compiler Label
 getFuncLabel nm = do
-  hasLabel ← labelUsed nm
+  hasLabel ← use $ labels.hasEl nm
   if hasLabel
   then fail $ "Duplicate definition of " ++ nm
   else do
-    useLabel nm
+    labels <:~ nm
     return nm
 
 allLabels :: [Label]
@@ -125,39 +118,50 @@ allLabels = enumerate "lbl"
 -- Get local label which haven't been used yet for sure.
 newLocalLabel :: Compiler Label
 newLocalLabel = do
-  used ← gets labels
+  used ← use labels
   let newl = head $ filter (not ∘ (∈ used)) allLabels
-  useLabel newl
+  labels <:~ newl
   return newl
 
 {--
   Local variables manipulation
 --}
-addLocalVar :: Name → Compiler ()
-addLocalVar v = modify $ \cs → cs { locals = v : locals cs }
 
-removeLocalVar :: Name → Compiler ()
-removeLocalVar v = modify $ \cs → cs { locals = delete v (locals cs) }
+type VarCodeGen = String → Variable → String → CodeBlock
 
-localVarPlace :: Name → Compiler (Maybe String)
+varGetCode :: VarCodeGen
+varGetCode dst (Ordinary _) src = CodeBlob [Mov dst src]
+varGetCode dst (Enclosed _) src = CodeBlob [Mov "rax" src, Mov dst "[rax]"]
+
+varPutCode :: VarCodeGen
+varPutCode src (Ordinary _) dst = CodeBlob [Mov dst src]
+varPutCode src (Enclosed _) dst = CodeBlob [Mov "rdx" src, Mov "rax" dst, Mov "[rax]" "rdx"]
+
+localVarPlace :: Name → Compiler (Maybe (Variable, String))
 localVarPlace v = do
-  locs ← gets locals
+  locs ← use locals
   return $ do
-    i ← elemIndex v locs
-    return $ "[rbp - " ++ show ((length locs - i) ⋅ 8) ++ "]"
+    i ← indexPacked v locs
+    let var = locs !! i
+    return (var, "[rbp - " ++ show ((length locs - i) ⋅ 8) ++ "]")
 
-freeVarPlace :: Name → Compiler (Maybe String)
+freeVarPlace :: Name → Compiler (Maybe (Variable, String))
 freeVarPlace v = do
-  fvs ← gets freeVars
+  fvs ← use freeVars
   return $ do
-    i ← elemIndex v fvs
-    return $ "[rbx + " ++ show (i ⋅ 8 + 8) ++ "]"
+    i ← indexPacked v fvs
+    let var = fvs !! i
+    return (var, "[rbx + " ++ show (i ⋅ 8 + 8) ++ "]")
 
-varPlace :: Name → Compiler (Maybe String)
-varPlace v = do
+varAction :: VarCodeGen → Name → String → Compiler (Maybe CodeBlock)
+varAction f v pl = do
   lv ← localVarPlace v
   fv ← freeVarPlace v
-  return $ lv <|> fv
+  return $ liftM (uncurry $ f pl) $ lv <|> fv
+
+varGet, varPut :: Name → String → Compiler (Maybe CodeBlock)
+varGet = varAction varGetCode
+varPut = varAction varPutCode
 
 {--
   Translates `FuncDef` to `CodeFunction`
@@ -166,13 +170,13 @@ varPlace v = do
 --}
 compileFunction :: FuncDef → Compiler CodeFunction
 compileFunction foo = do
-  let movArgCode = moveArguments $ args foo
+  let movArgCode = moveArguments $ foo^.args.to length
 
   initStackFrame foo
-  code ← compileBody $ body foo
+  code ← compileBody $ foo^.body
   resetStackFrame foo
 
-  let code' = [CodeBlob [Enter (show $ 8 * nlocals foo) "0"]] ⊕
+  let code' = [CodeBlob [Enter (show $ 8 * foo^.nlocals) "0"]] ⊕
               saveRegs ⊕
               movArgCode ⊕
               [LocalLabel "tailcall"] ⊕
@@ -180,29 +184,28 @@ compileFunction foo = do
               restoreRegs ⊕
               [CodeBlob [Leave, Ret]]
 
-  return $ CodeFunction (label foo) code'
-
-addUsedExtern :: String → Compiler ()
-addUsedExtern name = modify (\cs → cs { usedExterns = nub $ name : usedExterns cs })
+  return $ CodeFunction (foo^.label) code'
 
 compileMain :: AExp → Compiler CodeFunction
 compileMain prog = do
   let prog' = Progn [ (Funcall "memmgr_init" [])
                     , prog
                     , (Funcall "memmgr_free" [])]
-  addUsedExtern $ "memmgr_init"
-  addUsedExtern $ "memmgr_free"
-  compileFunction $ FD "main" ["argc", "argv"] [] prog' (countLocals prog' + 2)
+  usedExterns <:~ "memmgr_init"
+  usedExterns <:~ "memmgr_free"
+  compileFunction $ FD "main" [ Ordinary "argc"
+                              , Ordinary "argv"
+                              ] [] prog' (countLocals prog' + 2)
 
 initStackFrame :: FuncDef → Compiler ()
 initStackFrame foo = do
-  forM_ (args foo) addLocalVar
-  modify $ \cs → cs { freeVars = frees foo }
+  locals <++~ foo^.args
+  freeVars .= foo^.frees
 
 resetStackFrame :: FuncDef → Compiler ()
 resetStackFrame foo = do
-  forM_ (args foo) removeLocalVar
-  modify $ \cs → cs { freeVars = [] }
+  locals ~\\> foo^.args
+  freeVars .= []
 
 saveRegs :: [CodeBlock]
 saveRegs = [CodeBlob [Push "rbx"]]
@@ -224,15 +227,15 @@ argsOrder :: [String]
 argsOrder = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"] ++ revStack 2
     where revStack n = ["[rbp + " ++ show (n ⋅ 8) ++ "]"] ++ revStack (n + 1)
 
-moveArguments :: [Name] → [CodeBlock]
+moveArguments :: Int → [CodeBlock]
 moveArguments = movArgs 0
-    where movArgs _ [] = []
-          movArgs n (_:vs) =
-              let dst = "[rbp - " ++ show ((n + 1)*8) ++ "]"
+    where movArgs _ 0 = []
+          movArgs n m =
+              let dst = "[rbp - " ++ show ((n + 1) ⋅ 8) ++ "]"
                   (src, preop) = if n < 6 then (argsOrder !! n, [])
                                  else ("rax", [CodeBlob [Mov "rax" (argsOrder !! n)]])
               in preop ⊕ [CodeBlob [Mov dst src]] ⊕
-                 movArgs (n + 1) vs
+                 movArgs (n + 1) (m - 1)
 
 putArguments :: [[CodeBlock]] → [CodeBlock]
 putArguments args = putRegs (take 6 args) ⊕ putStack (drop 6 args)
@@ -269,8 +272,10 @@ callingCode :: Label → [[CodeBlock]] → [CodeBlock]
 callingCode foo = callingCode' [CodeBlob [Call foo]]
 
 applyBuiltin :: Builtin → [[CodeBlock]] → Compiler [CodeBlock]
-applyBuiltin b as = mapM_ addUsedExtern (builtinExterns b) >>
-                    (return $ builtinBody b as)
+applyBuiltin b as = do
+  usedExterns <++~ builtinExterns b
+  return $ builtinBody b as
+
 {--
   A function which should compile `SExp` into assembler code.
 --}
@@ -293,18 +298,18 @@ compileBody (BuiltinCall b as) = case getBuiltin b $ length as of
                                       Nothing → fail "Builtin unknown"
                                       Just b' → (applyBuiltin b') =<< mapM compileBody as
 compileBody (Funcall f as) = do
-  mfoo ← getFunction f
+  mfoo ← use $ functions.at f
   mimp ← getAvailableExterns f
   let procFoo :: String → Compiler [CodeBlock]
       procFoo name = do
         as' ← mapM compileBody as
         return $ callingCode name as'
   case (mfoo, mimp) of
-   (Just foo, Just foo') → fail ("Duplicate function. Calling " ++ f ++ " when "
-                        ++ "it's imported from somewhere (check your libs) :"
-                        ++ (show foo) ++ " " ++ (show foo'))
-   (Just foo, Nothing) → procFoo $ label foo
-   (Nothing, Just foo) → addUsedExtern foo >> procFoo foo
+   (Just foo, Just foo') → fail $ "Duplicate function. Calling " ++ f ++ " when "
+                             ++ "it's imported from somewhere (check your libs) :"
+                             ++ (show foo) ++ " " ++ (show foo')
+   (Just foo, Nothing) → procFoo $ foo^.label
+   (Nothing, Just foo) → usedExterns <:~ foo >> procFoo foo
    (Nothing, Nothing) → fail $ "Undefined function: " ++ f
 
 compileBody (Tailcall as) = do
@@ -320,14 +325,14 @@ compileBody (LambdaCall l as) = do
 compileBody (Let bnd e) = do
                    binds ← mapM bindVar bnd
                    eb ← compileBody e
-                   forM_ bnd $ removeLocalVar ∘ fst
+                   locals ~\\> map fst bnd
                    return $ mconcat binds ⊕ eb
 
 compileBody (Var v) = do
-  pl ← varPlace v
+  pl ← varGet v "rax"
   case pl of
     Nothing → fail $ "Undeclared variable '" ++ v ++ "'"
-    Just place → return [CodeBlob [Mov "rax" place]]
+    Just place → return [place]
 
 compileBody (List []) = return [CodeBlob [Xor "rax" "rax"]]  -- empty list is just a nullpointer
 compileBody (List (x:xs)) = do
@@ -337,18 +342,18 @@ compileBody (List (x:xs)) = do
 
 compileBody (Closure lbl frs) = do
   freeVals ← mapM (compileBody ∘ Var) frs
-  let as = [ [CodeBlob [Mov "rax" lbl]]
+  let as = [ [CodeBlob [Mov "rax" ("qword " ++ lbl)]]
            , [CodeBlob [Mov "rax" (show $ length frs)]]
            ] ++ freeVals
-  addUsedExtern $ "memmgr_make_closure"
+  usedExterns <:~ "memmgr_make_closure"
   return $ callingCode "memmgr_make_closure" as
 
 {--
   Local variables indroduction
 --}
-bindVar :: (Name, AExp) → Compiler [CodeBlock]
+bindVar :: (Variable, AExp) → Compiler [CodeBlock]
 bindVar (v, e) = do
   eb ← compileBody e
-  addLocalVar v
-  place ← localVarPlace v
-  return $ eb ⊕ [CodeBlob [Mov (fromJust place) "rax"]]
+  locals <:~ v
+  varCode ← varPut (extract v) "rax"
+  return $ eb ⊕ [fromJust varCode]

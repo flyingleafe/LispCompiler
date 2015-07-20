@@ -1,19 +1,25 @@
-{-# LANGUAGE UnicodeSyntax, OverloadedStrings, ViewPatterns, TupleSections #-}
-module Preprocessor ( FuncDef(..)
+{-# LANGUAGE UnicodeSyntax, OverloadedStrings, ViewPatterns, TupleSections, TemplateHaskell, OverlappingInstances #-}
+module Preprocessor ( FuncDef(FD)
                     , preprocess
                     , isFunDefinition
                     , listAE
                     , countLocals
                     , findFrees
+                    , label
+                    , args
+                    , frees
+                    , body
+                    , nlocals
                     ) where
 
 import Prelude.Unicode
 import Control.Monad.State.Lazy
+import Control.Comonad
+import Control.Lens hiding (Const)
 import Data.List
 import Data.List.Unicode
 import Control.Applicative ((<$>), (<*>), (*>), (<*))
 import Data.Char (ord)
-
 
 import Utils
 import SExp
@@ -23,22 +29,25 @@ import Macros
 {--
   This is the function definition datatype
   It contains everything to compile function into a labeled code block
-  Some time after here'll be a tricky field named "closure" also
 --}
-data FuncDef = FD { label :: String
-                  , args :: [Identifier]
-                  , frees :: [Identifier]
-                  , body :: AExp
-                  , nlocals :: Int
+data FuncDef = FD { _label :: String
+                  , _args :: [Variable]
+                  , _frees :: [Variable]
+                  , _body :: AExp
+                  , _nlocals :: Int
                   } deriving Show
 
-data PrepState = PS { funcs :: [FuncDef]
-                    , boundVars :: [Identifier]
-                    , usedLabels :: [String]
-                    , currentFunc :: Maybe String
+data PrepState = PS { _funcs :: [FuncDef]
+                    , _boundVars :: [Identifier]
+                    , _usedLabels :: [String]
+                    , _currentFunc :: Maybe String
                     }
 
 type Preproc = StateT PrepState (Either String)
+type VarSt = State [Variable]
+
+makeLenses ''FuncDef
+makeLenses ''PrepState
 
 isFunDefinition :: SExp → Bool
 isFunDefinition (SDefine _ (SLambda _ _)) = True
@@ -62,11 +71,52 @@ findFrees :: AExp → [Identifier]
 findFrees = ffr []
     where ffr bnd (Var x) = if x ∈ bnd then [] else [x]
           ffr bnd (Let binds s) =
-                       let addBinding (bnd', fr) (x, s') = (bnd' ∪ [x], fr ∪ ffr bnd' s')
+                       let addBinding (bnd', fr) (x, s') = ( bnd' ∪ [extract x]
+                                                           , fr ∪ ffr bnd' s'
+                                                           )
                        in let (bnd', fr') = foldl addBinding (bnd, []) binds
                           in fr' ∪ ffr bnd' s
           ffr bnd (listAE → Just ss) = unionMap (ffr bnd) ss
           ffr _ _ = []
+
+findEnclosed :: AExp → VarSt AExp
+findEnclosed e@(Closure _ vars) = do
+  forM_ vars $ \v → do
+    id %≟ exchangeBy (\x → extract x ≡ v) (Enclosed v)
+  return e
+findEnclosed (Let binds s) = do
+                    let bvars = map fst binds
+                    id <++~ bvars
+                    s' ← findEnclosed s
+                    rbinds ← forM (reverse binds) $ \(var, e) → do
+                               curs ← get
+                               let x    = extract var
+                                   mvar = findPacked x curs
+                               e' ← findEnclosed e
+                               case mvar of
+                                 Nothing   → return (var, e')
+                                 Just var' → return (var', e')
+                    id %= drop (length bvars)
+                    return $ Let (reverse rbinds) s'
+findEnclosed (Set x s) = Set x <$> findEnclosed s
+findEnclosed (Cond a b c) = Cond <$> findEnclosed a <*> findEnclosed b <*> findEnclosed c
+findEnclosed (BuiltinCall f ss) = BuiltinCall f <$> mapM findEnclosed ss
+findEnclosed (Funcall f ss) = Funcall f <$> mapM findEnclosed ss
+findEnclosed (Tailcall ss) = Tailcall <$> mapM findEnclosed ss
+findEnclosed (LambdaCall s ss) = LambdaCall <$> findEnclosed s <*> mapM findEnclosed ss
+findEnclosed (List ss) = List <$> mapM findEnclosed ss
+findEnclosed (Progn ss) = Progn <$> mapM findEnclosed ss
+findEnclosed v = return v
+
+findEnclosedFunc :: FuncDef → FuncDef
+findEnclosedFunc (FD nm as fr bod nl) = FD nm as' fr' bod' nl
+    where (bod', allVars) = runState (findEnclosed bod) []
+          as' = map ifEnc as
+          fr' = map ifEnc fr
+          ifEnc (extract → x) = if x ∈ encs then Enclosed x else Ordinary x
+          encs = map extract $ filter isEnc allVars
+          isEnc (Enclosed _) = True
+          isEnc _ = False
 
 countLocals :: AExp → Int
 countLocals (Let binds e) = length binds + countLocals e + (sum $ map (countLocals ∘ snd) binds)
@@ -80,55 +130,36 @@ countLocals _ = 0
 --}
 addFunc :: Identifier → [Identifier] → AExp → Preproc [Identifier]
 addFunc nm as bod = do
-  present ← gets $ (nm ∈) ∘ map label ∘ funcs
-  if present then fail $ "Duplicate definition of function: " ++ nm
+  labels ← useAll $ funcs.traverse.label
+  if nm ∈ labels
+  then fail $ "Duplicate definition of function: " ++ nm
   else do
-    let fr = findFrees bod \\ as
-        nl = length as + countLocals bod
-    modify $ \ps → ps { funcs = (FD nm as fr bod nl) : funcs ps }
+    let fr  = findFrees bod \\ as
+        as' = map Ordinary as
+        fr' = map Ordinary fr
+        nl  = length as + countLocals bod
+    funcs <:~ findEnclosedFunc (FD nm as' fr' bod nl)
     return fr
 
-addBoundVar, removeBoundVar :: Identifier → Preproc ()
-addBoundVar v = modify $ \ps → ps { boundVars = v : boundVars ps }
-removeBoundVar v = modify $ \ps → ps { boundVars = delete v $ boundVars ps }
-
-addBoundVars, removeBoundVars :: [Identifier] → Preproc ()
-addBoundVars = mapM_ addBoundVar
-removeBoundVars = mapM_ removeBoundVar
-
 withBounds :: [Identifier] → Preproc a → Preproc a
-withBounds vs action = addBoundVars vs *> action <* removeBoundVars vs
-
-hasFunc :: Identifier → Preproc Bool
-hasFunc nm = gets $ (nm ∈) ∘ map label ∘ funcs
-
-hasBound :: Identifier → Preproc Bool
-hasBound nm = gets $ (nm ∈) ∘ boundVars
-
-getCurrentFunc :: Preproc (Maybe String)
-getCurrentFunc = gets $ currentFunc
-
-setCurrentFunc :: String → Preproc ()
-setCurrentFunc lbl = modify $ \ps → ps { currentFunc = Just lbl }
-
-unsetCurrentFunc :: Preproc ()
-unsetCurrentFunc = modify $ \ps → ps { currentFunc = Nothing }
+withBounds vs action = (boundVars <++~ vs) *> action <* (boundVars ~\\> vs)
 
 flabels :: [String]
 flabels = enumerate "lambda"
 
 newFLabel :: Preproc String
 newFLabel = do
-  used ← gets usedLabels
+  used ← use usedLabels
   let new = head $ filter (not ∘ (∈ used)) flabels
   useFLabel new
   return new
 
 useFLabel :: String → Preproc ()
 useFLabel lbl = do
-  hasAlready ← gets $ (lbl ∈) ∘ usedLabels
-  if hasAlready then fail $ "Duplicate label usage: '" ++ lbl ++ "'"
-  else modify $ \ps → ps { usedLabels = lbl : usedLabels ps }
+  hasAlready ← use $ usedLabels.hasEl lbl
+  if hasAlready
+  then fail $ "Duplicate label usage: '" ++ lbl ++ "'"
+  else usedLabels <:~ lbl
 
 {--
   Main preprocessing function.
@@ -141,14 +172,15 @@ preproc (SVar n) = return $ Var n
 preproc (SQuote (SList ss)) = List <$> mapM preproc ss
 preproc (SQuote s) = preproc s   -- no other uses for quote yet
 preproc (SCond a b c) = Cond <$> preproc a <*> preproc b <*> preproc c
+preproc (SSet x s) = Set x <$> preproc s
 preproc (SLet bnds s) = withBounds (map fst bnds) $
                         Let <$> mapM ppBind bnds <*> preproc s
-                                where ppBind (x, s') = (x, ) <$> preproc s'
+                                where ppBind (x, s') = (Ordinary x, ) <$> preproc s'
 preproc (SList []) = return $ List []
 preproc (SList ((SVar f):as)) =
     if f ≡ "recur"
     then do
-         cur ← getCurrentFunc
+         cur ← use currentFunc
          case cur of
            Nothing → fail "Recur lambda call outside function"
            Just cur' → Funcall cur' <$> mapM preproc as
@@ -158,7 +190,7 @@ preproc (SList ((SVar f):as)) =
     else if hasBuiltin f (length as)
          then BuiltinCall f <$> mapM preproc as
          else do
-           hb ← hasBound f
+           hb ← use $ boundVars.hasEl f
            if not hb then Funcall f <$> mapM preproc as
            else LambdaCall (Var f) <$> mapM preproc as
 
@@ -166,10 +198,10 @@ preproc (SList (s:ss)) = LambdaCall <$> preproc s <*> mapM preproc ss
 preproc (SString str) = return $ List $ map (Const ∘ ord) str
 preproc (SLambda as bod) = do
   lbl ← newFLabel
-  setCurrentFunc lbl
+  currentFunc ?= lbl
   bod' ← withBounds as $ preproc bod
   fr ← addFunc lbl as $ findTailcalls lbl bod'
-  unsetCurrentFunc
+  currentFunc .= Nothing
   return $ Closure lbl fr
 
 {--
@@ -188,11 +220,10 @@ findTailcalls _ s = s
 
 addFunDef :: SExp → Preproc ()
 addFunDef (SDefine nm (SLambda as bod)) = do
-  setCurrentFunc nm
+  currentFunc ?= nm
   bod' ← withBounds as $ preproc bod
   addFunc nm as $ findTailcalls nm bod'
-  unsetCurrentFunc
-  return ()
+  currentFunc .= Nothing
 addFunDef _ = fail "Wrong definition format"
 
 preprocProg :: Source → Preproc AExp
@@ -206,3 +237,4 @@ preprocess :: Source → Either String (AExp, [FuncDef])
 preprocess ss = do
   (ae, PS foos _ _ _) ← runStateT (preprocProg ss) (PS [] [] [] Nothing)
   return (ae, foos)
+--}

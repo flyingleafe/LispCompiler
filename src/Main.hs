@@ -14,6 +14,7 @@ import Parser.Lisp
 import Compiler
 import Settings
 import LibLoader
+import Assembler
 
 processIO :: ([Handle] → Handle → [Flag] → IO ()) → IO ()
 processIO handling = do
@@ -42,18 +43,21 @@ main = processIO $ \inputs output flags →
           Right libs → case compile flags libs $ concat term of
                         Left err → hPutStrLn stderr $ "Compilation error: " ++ err
                         Right prog →
+                          let prog' = if LabelPrefixes ∈ flags
+                                      then addLabelPrefixes prog
+                                      else prog
+                              yflags = if LabelPrefixes ∈ flags
+                                       then ["-fmacho64"]
+                                       else ["-felf63", "-gdwarf2"]
+                          in
                           if PreprocessOnly ∈ flags then
-                            hPutStrLn output $ show prog
+                            hPutStrLn output $ show prog'
                           else do
                             (pathin, h1)  ← openTempFile "/tmp" "lispcomptemp.yasm"
                             (pathout, h2)  ← openTempFile "/tmp" "lispcomptemp.o"
-                            hPutStrLn h1 $! show prog
+                            hPutStrLn h1 $! show prog'
                             hFlush h1
-                            callProcess "yasm" ["-felf64",
-                                                "-gdwarf2",
-                                                "-o", pathout,
-                                                pathin
-                                               ]
+                            callProcess "yasm" $ yflags ++ ["-o", pathout, pathin]
                             putStrLn "yasm suceeded"
                             hFlush h2
                             callProcess "gcc" ["-ggdb",
