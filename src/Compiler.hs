@@ -322,6 +322,13 @@ compileBody (LambdaCall l as) = do
   let call = clp ⊕ [CodeBlob [Mov "rbx" "rax", Call "[rax]"]]
   return $ [CodeBlob [Push "rbx"]] ⊕ callingCode' call as' ⊕ [CodeBlob [Pop "rbx"]]
 
+compileBody (Set v e) = do
+  eb ← compileBody e
+  pl ← varPut v "rax"
+  case pl of
+    Nothing    → fail $ "Undeclared variable '" ++ v ++ "'"
+    Just place → return $ eb ⊕ [place]
+
 compileBody (Let bnd e) = do
                    binds ← mapM bindVar bnd
                    eb ← compileBody e
