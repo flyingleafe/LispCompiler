@@ -48,7 +48,7 @@ main = processIO $ \inputs output flags →
                                       else prog
                               yflags = if LabelPrefixes ∈ flags
                                        then ["-fmacho64"]
-                                       else ["-felf63", "-gdwarf2"]
+                                       else ["-felf64", "-gdwarf2"]
                           in
                           if PreprocessOnly ∈ flags then
                             hPutStrLn output $ show prog'
