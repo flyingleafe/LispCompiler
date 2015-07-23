@@ -20,6 +20,7 @@ import Data.List
 import Data.List.Unicode
 import Control.Applicative ((<$>), (<*>), (*>), (<*))
 import Data.Char (ord)
+import Debug.Trace
 
 import Utils
 import SExp
@@ -110,7 +111,7 @@ findEnclosed v = return v
 
 findEnclosedFunc :: FuncDef → FuncDef
 findEnclosedFunc (FD nm as fr bod nl) = FD nm as' fr' bod' nl
-    where (bod', allVars) = runState (findEnclosed bod) []
+    where (bod', allVars) = runState (findEnclosed bod) (as ++ fr)
           as' = map ifEnc as
           fr' = map ifEnc fr
           ifEnc (extract → x) = if x ∈ encs then Enclosed x else Ordinary x
