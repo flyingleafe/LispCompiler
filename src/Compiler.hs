@@ -236,7 +236,7 @@ moveArguments :: [Variable] → Compiler [CodeBlock]
 moveArguments = movArgs 0
     where movArgs _ [] = return []
           movArgs n (v:vs) = do
-            (var, dst) ← liftM fromJust $ varPlace $ extract v
+            var  ← liftM (fst ∘ fromJust) $ varPlace $ extract v
             movc ← movArg n var
             rest ← movArgs (n + 1) vs
             return $ movc ⊕ rest
@@ -246,7 +246,7 @@ moveArguments = movArgs 0
                                else ("rax", [CodeBlob [Mov "rax" (argsOrder !! n)]])
                 x = extract var
             intr  ← liftM fromJust $ introduceVar x
-            pcode ← liftM fromJust $ varPut src x
+            pcode ← liftM fromJust $ varPut x src
             return $ intr ⊕ preop ⊕ [pcode]
 
 

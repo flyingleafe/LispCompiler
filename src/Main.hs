@@ -35,13 +35,13 @@ main :: IO ()
 main = processIO $ \inputs output flags →
   do contents ← mapM BS.hGetContents inputs
      case mapM getSExps contents of
-       Left err → hPutStrLn stderr $ "Couldn't parse: " ++ err
+       Left err   → hPutStrLn stderr $ "Couldn't parse: " ++ err
        Right term → do
          libs ← loadLibs flags
          case libs of
-          Left err → hPutStrLn stderr $ "Couldn't load the library: " ++ err
+          Left err   → hPutStrLn stderr $ "Couldn't load the library: " ++ err
           Right libs → case compile flags libs $ concat term of
-                        Left err → hPutStrLn stderr $ "Compilation error: " ++ err
+                        Left err   → hPutStrLn stderr $ "Compilation error: " ++ err
                         Right prog →
                           let prog' = if LabelPrefixes ∈ flags
                                       then addLabelPrefixes prog
