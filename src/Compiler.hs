@@ -153,11 +153,16 @@ freeVarPlace v = do
     let var = fvs !! i
     return (var, "[rbx + " ++ show (i ⋅ 8 + 8) ++ "]")
 
-varAction :: VarCodeGen → Name → String → Compiler (Maybe CodeBlock)
-varAction f v pl = do
+varPlace :: Name → Compiler (Maybe (Variable, String))
+varPlace v = do
   lv ← localVarPlace v
   fv ← freeVarPlace v
-  return $ liftM (uncurry $ f pl) $ lv <|> fv
+  return $ lv <|> fv
+
+varAction :: VarCodeGen → Name → String → Compiler (Maybe CodeBlock)
+varAction f v pl = do
+  vp ← varPlace v
+  return $ liftM (uncurry $ f pl) vp
 
 varGet, varPut :: Name → String → Compiler (Maybe CodeBlock)
 varGet = varAction varGetCode
@@ -170,10 +175,10 @@ varPut = varAction varPutCode
 --}
 compileFunction :: FuncDef → Compiler CodeFunction
 compileFunction foo = do
-  let movArgCode = moveArguments $ foo^.args.to length
 
   initStackFrame foo
-  code ← compileBody $ foo^.body
+  movArgCode ← moveArguments $ foo^.args
+  code       ← compileBody $ foo^.body
   resetStackFrame foo
 
   let code' = [CodeBlob [Enter (show $ 8 * foo^.nlocals) "0"]] ⊕
@@ -227,15 +232,23 @@ argsOrder :: [String]
 argsOrder = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"] ++ revStack 2
     where revStack n = ["[rbp + " ++ show (n ⋅ 8) ++ "]"] ++ revStack (n + 1)
 
-moveArguments :: Int → [CodeBlock]
+moveArguments :: [Variable] → Compiler [CodeBlock]
 moveArguments = movArgs 0
-    where movArgs _ 0 = []
-          movArgs n m =
-              let dst = "[rbp - " ++ show ((n + 1) ⋅ 8) ++ "]"
-                  (src, preop) = if n < 6 then (argsOrder !! n, [])
-                                 else ("rax", [CodeBlob [Mov "rax" (argsOrder !! n)]])
-              in preop ⊕ [CodeBlob [Mov dst src]] ⊕
-                 movArgs (n + 1) (m - 1)
+    where movArgs _ [] = return []
+          movArgs n (v:vs) = do
+            (var, dst) ← liftM fromJust $ varPlace $ extract v
+            movc ← movArg n var
+            rest ← movArgs (n + 1) vs
+            return $ movc ⊕ rest
+
+          movArg n var = do
+            let (src, preop) = if n < 6 then (argsOrder !! n, [])
+                               else ("rax", [CodeBlob [Mov "rax" (argsOrder !! n)]])
+                x = extract var
+            intr  ← liftM fromJust $ introduceVar x
+            pcode ← liftM fromJust $ varPut src x
+            return $ intr ⊕ preop ⊕ [pcode]
+
 
 putArguments :: [[CodeBlock]] → [CodeBlock]
 putArguments args = putRegs (take 6 args) ⊕ putStack (drop 6 args)
@@ -338,7 +351,7 @@ compileBody (Let bnd e) = do
 compileBody (Var v) = do
   pl ← varGet v "rax"
   case pl of
-    Nothing → fail $ "Undeclared variable '" ++ v ++ "'"
+    Nothing    → fail $ "Undeclared variable '" ++ v ++ "'"
     Just place → return [place]
 
 compileBody (List []) = return [CodeBlob [Xor "rax" "rax"]]  -- empty list is just a nullpointer
@@ -358,9 +371,30 @@ compileBody (Closure lbl frs) = do
 {--
   Local variables indroduction
 --}
+
+introduceVar :: Name → Compiler (Maybe [CodeBlock])
+introduceVar v = do
+  mvp ← varPlace v
+  usedExterns <:~ "memmgr_alloc"
+  return $ do
+    (var, place) ← mvp
+    case var of
+      Ordinary _ → return []
+      Enclosed _ → return [CodeBlob [
+                            Push "rdi",
+                            Mov "rdi" "8",
+                            Call "memmgr_alloc",
+                            Mov place "rax",
+                            Pop "rdi"
+                           ]]
+
 bindVar :: (Variable, AExp) → Compiler [CodeBlock]
 bindVar (v, e) = do
   eb ← compileBody e
   locals <:~ v
-  varCode ← varPut (extract v) "rax"
-  return $ eb ⊕ [fromJust varCode]
+
+  let x = extract v
+  introduction ← introduceVar x
+  varCode      ← varPut x "rax"
+
+  return $ eb ⊕ fromJust introduction ⊕ [fromJust varCode]
