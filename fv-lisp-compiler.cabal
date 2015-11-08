@@ -3,8 +3,8 @@
 
 name:                fv-lisp-compiler
 version:             0.1.0.0
-license:             AllRightsReserved
-synopsis:            Simple list compiler
+license:             GPL
+synopsis:            Simple lisp compiler
 description:         A toy Lisp dialect parser and compiler (makes .asm file in YASM format from .fvl files)
 author:              flyingleafe
 maintainer:          flyingleafe@gmail.com
