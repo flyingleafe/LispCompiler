@@ -14,16 +14,16 @@ This compiler supports custom subset of lisp (see tests/examples). Features:
 #### Howto:
 ```bash
 $ cabal build compiler
-$ ./compiler --help
+$ ./dist/build/compiler/compiler --help
 # running tests
 $ ./tester.sh
 # check consistency of stdlib
 $ ./libtester.sh
 # example (factorial)
-$ ./compiler -o a.out ./test/lisp/test19.lisp && ./a.out <<< 6
+$ ./dist/build/compiler/compiler -o a.out ./test/lisp/test19.lisp && ./a.out <<< 6
 ```
 ```
-Usage: ./compiler [Flag]* InputFile 
+Usage: ./compiler [Flag]* InputFile
 Simple one-char flags can be combined like -abcde.
     --help -h  show this help and exit
     -M         disable script mode (compile without main)
@@ -31,4 +31,15 @@ Simple one-char flags can be combined like -abcde.
     -S         do not compile, link with libraries only, product .yasm
     -o output  specify output file
     -L path    load library specified by path
+```
+
+#### Same with nix:
+```bash
+# build everything:
+$ nix-build
+# ls ./result/bin
+asm-tester  compiler
+# another way is to enter the nix-shell:
+$ nix-shell
+# now all dependencies are built and cabal will work as it should
 ```

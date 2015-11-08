@@ -2,6 +2,7 @@ dist/*
 *.o
 Main
 tmp/
+result
 
 #*
 *~
