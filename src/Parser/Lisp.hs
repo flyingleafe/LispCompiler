@@ -25,7 +25,7 @@ getSExps = parseOnly ((many1 $ skipSpace *> sexp) <* (skipSpace *> endOfInput)) 
 
 sexp :: Parser SExp
 sexp = constexpr <|> var <|> tickquote <|>
-       parens (quote <|> cond <|> define <|> letexpr <|> lambda <|> list)
+       parens (quote <|> cond <|> define <|> set <|> letexpr <|> lambda <|> list)
 
 builtinId :: Parser Identifier
 builtinId = BS.unpack <$> takeWhile1 (inClass "-~/%+*=<>")
@@ -81,6 +81,11 @@ define :: Parser SExp
 define = do
   lexeme $ string "define" <* space
   SDefine <$> identifier <*> sexp
+
+set :: Parser SExp
+set = do
+  lexeme $ string "set" <* space
+  SSet <$> identifier <*> sexp
 
 letexpr :: Parser SExp
 letexpr = do

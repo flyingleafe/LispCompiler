@@ -15,7 +15,7 @@ section .text
 ;;; void printInt(int a);
 printInt:
         mov     rsi, rdi
-        mov     rdi, pattern_int_n
+        mov     rdi, qword pattern_int_n
         xor     rax, rax
         call    printf
         ret
@@ -25,19 +25,19 @@ printInt:
 readInt:
         sub     rsp, 8
         mov     rsi, rsp
-        mov     rdi, pattern_int
+        mov     rdi, qword pattern_int
         xor     rax, rax
         call    scanf
         add     rsp, 8
 
-        mov     rax, qword[rsp-8]
+        mov     rax, qword [rsp - 8]
         ret
 
 ;;; prints list in format (a b c d)
 ;;; void printList(void* a);
 printList:
         push    rdi
-        mov     rdi, pattern_list_lb
+        mov     rdi, qword pattern_list_lb
         xor     rax, rax
         call    printf
         pop     rdi
@@ -48,11 +48,11 @@ printList:
 
 
         .loop
-        mov     rsi, qword[rdi]
+        mov     rsi, qword [rdi]
 
         ;; print current elem
         push    rdi
-        mov     rdi, pattern_int
+        mov     rdi, qword pattern_int
         xor     rax, rax
         call    printf
         pop     rdi
@@ -62,7 +62,7 @@ printList:
         je      .end
 
         push    rdi
-        mov     rdi, pattern_space
+        mov     rdi, qword pattern_space
         xor     rax, rax
         call    printf
         pop     rdi
@@ -72,11 +72,11 @@ printList:
         jmp     .loop
 
         .end
-        mov     rdi, pattern_list_rb
+        mov     rdi, qword pattern_list_rb
         xor     rax, rax
         call    printf
 
-        mov     rdi, pattern_n
+        mov     rdi, qword pattern_n
         xor     rax, rax
         call    printf
 
@@ -96,7 +96,7 @@ printString:
 
         ;; print current char
         push    rdi
-        mov     rdi, pattern_chr
+        mov     rdi, qword pattern_chr
         xor     rax, rax
         call    printf
         pop     rdi
@@ -111,7 +111,7 @@ printString:
 
         .end
 
-        mov     rdi, pattern_n
+        mov     rdi, qword pattern_n
         xor     rax, rax
         call    printf
 

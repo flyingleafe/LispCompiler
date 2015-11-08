@@ -40,7 +40,7 @@ and' ss = foldl wrapIf (Const 1) ss
     where wrapIf a b = (Cond a b (Const 0))
 
 or' ss = foldl wrapLetIf (Const 0) ss
-    where wrapLetIf b a = (Let [("x", a)] (Cond (Var "x") (Var "x") b))
+    where wrapLetIf b a = (Let [(Ordinary "x", a)] (Cond (Var "x") (Var "x") b))
 
 macroexpand :: String → [AExp] → AExp
 macroexpand nm = expand (fromJust $ find (\m → name m ≡ nm) macros)

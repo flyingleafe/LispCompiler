@@ -195,3 +195,13 @@ cantBeMergedPredicates = [
   where
     sumlabels :: [CodeFunction] → [DataLabel] → [BssLabel] → [String]
     sumlabels t d b = (map cflabel t) ++ (map datalabel d) ++ (map bsslabel b)
+
+addLabelPrefixes :: Assembler → Assembler
+addLabelPrefixes prog = prog { textSec = map duplicateLabel textSec'
+                             , globalLabels = globals' ++ map prefix' globals'
+                             }
+    where textSec' = textSec prog
+          globals' = globalLabels prog
+          prefix' s = "_" ++ s
+          duplicateLabel (CodeFunction lbl code) =
+              CodeFunction (prefix' lbl ++ ":\n" ++ lbl) code

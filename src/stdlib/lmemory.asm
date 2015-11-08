@@ -210,7 +210,7 @@ memmgr_allocList:
 readString:
         sub     rsp, 1024        ; maximum supported string length
         mov     rsi, rsp
-        mov     rdi, pattern_str
+        mov     rdi, qword pattern_str
         xor     rax, rax
         call    scanf
 
