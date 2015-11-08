@@ -10,7 +10,6 @@ import Data.Monoid.Unicode
 import Data.Maybe
 import Control.Monad.State
 import Control.Applicative hiding (Const)
-import Debug.Trace
 
 import Utils
 import Settings

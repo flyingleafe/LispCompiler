@@ -3,7 +3,6 @@ module Main where
 
 import Prelude.Unicode
 import System.IO
-import System.IO.Temp
 import System.Environment
 import System.Process
 import Data.List (nub)

@@ -40,10 +40,6 @@ builtinExterns = bExterns
 builtinBody :: Builtin → [[CodeBlock]] → [CodeBlock]
 builtinBody = body
 
----- List of functions in standard library
---stdFuncs :: [String]
---stdFuncs = []
-
 builtins :: [Builtin]
 builtins = [ Inline "not"  [1]      not'     [] -- this one is lognot, casts to bool
            , Inline "~"    [1]      btw_not  [] -- this is bitwise not
@@ -69,7 +65,8 @@ builtins = [ Inline "not"  [1]      not'     [] -- this one is lognot, casts to 
             ]
 
 toBool, not', btw_not, neg, and', or', equal, plus, minus,
-  mul, div', mod', nop, less, leq, greater, geq, cons, car, cdr, append :: [[CodeBlock]] → [CodeBlock]
+  mul, div', mod', nop, less, leq, greater,
+  geq, cons, car, cdr, append :: [[CodeBlock]] → [CodeBlock]
 
 toBool [a] = not'[not'[a]]
 
@@ -157,18 +154,28 @@ geq [a, b] = not' [less [a, b]]
 
 leq [a, b] = not' [greater [a, b]]
 
-cons [a, b] = [CodeBlob [Push "rdi", Push "rsi"]] ⊕
+cons [a, b] = [CodeBlob [Push "rdi",
+                         Push "rsi"]] ⊕
               a ⊕
               [CodeBlob [Push "rax"]] ⊕
               b ⊕
-              [CodeBlob [Mov "rsi" "rax", Pop "rdi", Call "memmgr_cons", Pop "rsi", Pop "rdi"]]
+              [CodeBlob [Mov "rsi" "rax",
+                         Pop "rdi",
+                         Call "memmgr_cons",
+                         Pop "rsi",
+                         Pop "rdi"]]
 
 car [a] = a ⊕ [CodeBlob [Mov "rax" "[rax]"]]
 cdr [a] = a ⊕ [CodeBlob [Mov "rax" "[rax + 8]"]]
 
 append [a] = a
-append (a:as) = [CodeBlob [Push "rdi", Push "rsi"]] ⊕
+append (a:as) = [CodeBlob [Push "rdi",
+                           Push "rsi"]] ⊕
                 append as ⊕
                 [CodeBlob [Push "rax"]] ⊕
                 a ⊕
-                [CodeBlob [Mov "rdi" "rax", Pop "rsi", Call "memmgr_list_append", Pop "rsi", Pop "rdi"]]
+                [CodeBlob [Mov "rdi" "rax",
+                           Pop "rsi",
+                           Call "memmgr_list_append",
+                           Pop "rsi",
+                           Pop "rdi"]]
