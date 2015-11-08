@@ -37,7 +37,7 @@ Simple one-char flags can be combined like -abcde.
 ```bash
 # build everything:
 $ nix-build
-# ls ./result/bin
+$ ls ./result/bin
 asm-tester  compiler
 # another way is to enter the nix-shell:
 $ nix-shell
